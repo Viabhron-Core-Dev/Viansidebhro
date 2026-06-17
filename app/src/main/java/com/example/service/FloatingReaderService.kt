@@ -63,6 +63,8 @@ class FloatingReaderService : Service() {
 
     private lateinit var prefs: SharedPreferences
     private var triggerHandleView: TriggerHandleView? = null
+    private var sidebarView: SidebarView? = null
+    private var defaultSidebarPage: View? = null
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
     private var isSpeaking = false
@@ -134,10 +136,31 @@ class FloatingReaderService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         setupFloatingView()
 
+        // Create the default sidebar page ONCE
+        defaultSidebarPage = android.widget.TextView(this).apply {
+            text = "Apps Page Placeholder"
+            setTextColor(android.graphics.Color.WHITE)
+            gravity = android.view.Gravity.CENTER
+            layoutParams = android.widget.FrameLayout.LayoutParams(
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        }
+
         triggerHandleView = TriggerHandleView(this, prefs, windowManager) {
             android.util.Log.d("VianSide", "trigger tapped")
+            showSidebar()
         }
         triggerHandleView?.attach()
+    }
+    
+    private fun showSidebar() {
+        if (sidebarView == null) {
+            sidebarView = SidebarView(this, prefs, windowManager, defaultSidebarPage!!) {
+                sidebarView?.detach()
+            }
+        }
+        sidebarView?.attach()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -2261,6 +2284,9 @@ class FloatingReaderService : Service() {
 
     override fun onDestroy() {
         instance = null
+        sidebarView?.detach()
+        sidebarView = null
+        defaultSidebarPage = null
         triggerHandleView?.detach()
         triggerHandleView = null
         saveCurrentPosition()

@@ -32,7 +32,7 @@ class TriggerHandleView(
         val drawable = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = 50f
-            setColor(Color.parseColor("#80000000")) 
+            setColor(Color.parseColor("#80607D8B")) 
         }
         background = drawable
 
