@@ -88,16 +88,18 @@ class SidebarAppsManager(
 
     private suspend fun loadAllAppsFromPackageManager() = withContext(Dispatchers.IO) {
         val pm = context.packageManager
-        val packages = pm.getInstalledApplications(PackageManager.GET_META_DATA)
-        val result = mutableListOf<AppInfo>()
-        for (app in packages) {
-            if (pm.getLaunchIntentForPackage(app.packageName) != null) {
-                val label = pm.getApplicationLabel(app).toString()
-                result.add(AppInfo(app.packageName, label))
-            }
+        val intent = Intent(Intent.ACTION_MAIN, null).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
         }
-        result.sortBy { it.label.lowercase() }
-        allInstalledApps = result
+        val apps = pm.queryIntentActivities(intent, 0)
+        val result = mutableListOf<AppInfo>()
+        for (resolveInfo in apps) {
+            val packageName = resolveInfo.activityInfo.packageName
+            val label = resolveInfo.loadLabel(pm).toString()
+            result.add(AppInfo(packageName, label))
+        }
+        val distinctResult = result.distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
+        allInstalledApps = distinctResult
     }
 
     private suspend fun loadActiveApps() = withContext(Dispatchers.IO) {
