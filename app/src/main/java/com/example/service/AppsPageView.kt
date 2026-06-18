@@ -123,17 +123,23 @@ class AppsPageView(
                         onCloseSidebar()
                     }
                 } else if (item is SidebarItem.SystemAction) {
-                    val service = VianSideAccessibilityService.instance
-                    if (service != null && service.performAction(item.action)) {
-                        // success
-                    } else {
-                        android.widget.Toast.makeText(context, "Please enable VianSide Accessibility Service", android.widget.Toast.LENGTH_SHORT).show()
-                        val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                    if (item.action == "log_keeper") {
+                        val intent = android.content.Intent(context, com.example.LogKeeperActivity::class.java)
                         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                        try {
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                        context.startActivity(intent)
+                    } else {
+                        val service = VianSideAccessibilityService.instance
+                        if (service != null && service.performAction(item.action)) {
+                            // success
+                        } else {
+                            android.widget.Toast.makeText(context, "Please enable VianSide Accessibility Service", android.widget.Toast.LENGTH_SHORT).show()
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            try {
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
                         }
                     }
                     onCloseSidebar()

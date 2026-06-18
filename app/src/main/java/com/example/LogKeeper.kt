@@ -8,6 +8,7 @@ import java.io.FileWriter
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 class App : Application() {
     override fun onCreate() {
@@ -20,6 +21,7 @@ object LogKeeper {
     var isEnabled = true
     private var defaultHandler: Thread.UncaughtExceptionHandler? = null
     private var appContext: android.content.Context? = null
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
 
     fun initialize(context: android.content.Context) {
         if (!isEnabled || defaultHandler != null) return
@@ -35,15 +37,29 @@ object LogKeeper {
     fun writeLog(tag: String, message: String) {
         if (!isEnabled) return
         try {
-            val timestamp = java.text.SimpleDateFormat("yyyyMMdd_HH", java.util.Locale.US).format(java.util.Date())
+            val timestamp = System.currentTimeMillis()
+            appContext?.let { ctx ->
+                scope.launch {
+                    try {
+                        com.example.data.AppDatabase.getDatabase(ctx).logDao().insert(
+                            com.example.data.LogEntry(timestamp = timestamp, tag = tag, message = message)
+                        )
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+
+            // Also keep writing to file as fallback for debugging from outside
+            val timeString = java.text.SimpleDateFormat("yyyyMMdd_HH", java.util.Locale.US).format(java.util.Date())
             var logFile: java.io.File? = null
             val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS)
             if (downloadsDir != null && downloadsDir.exists()) {
-                logFile = java.io.File(downloadsDir, "LiteReader_Log_${tag}_$timestamp.txt")
+                logFile = java.io.File(downloadsDir, "LiteReader_Log_${tag}_$timeString.txt")
             } else {
                 val fallbackDir = appContext?.getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS)
                 if (fallbackDir != null && fallbackDir.exists()) {
-                    logFile = java.io.File(fallbackDir, "LiteReader_Log_${tag}_$timestamp.txt")
+                    logFile = java.io.File(fallbackDir, "LiteReader_Log_${tag}_$timeString.txt")
                 }
             }
             logFile?.let {

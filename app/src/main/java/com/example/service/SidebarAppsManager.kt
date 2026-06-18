@@ -45,7 +45,8 @@ val ALL_SYSTEM_ACTIONS = listOf(
     SidebarItem.SystemAction("quick_settings", "Quick settings", android.R.drawable.ic_menu_manage),
     SidebarItem.SystemAction("recents", "Recents", android.R.drawable.ic_menu_recent_history),
     SidebarItem.SystemAction("screenshot", "Screenshot", android.R.drawable.ic_menu_camera),
-    SidebarItem.SystemAction("splitscreen", "Splitscreen", android.R.drawable.ic_menu_gallery)
+    SidebarItem.SystemAction("splitscreen", "Splitscreen", android.R.drawable.ic_menu_gallery),
+    SidebarItem.SystemAction("log_keeper", "Log Keeper", android.R.drawable.ic_menu_agenda)
 )
 
 data class AppInfo(

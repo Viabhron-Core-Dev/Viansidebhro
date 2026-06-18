@@ -80,6 +80,11 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
             
+        <activity
+            android:name=".LogKeeperActivity"
+            android:exported="true"
+            android:theme="@style/Theme.LiteReader" />
+            
         <receiver android:name=".service.BootReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
