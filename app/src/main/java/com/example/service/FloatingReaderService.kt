@@ -68,6 +68,7 @@ class FloatingReaderService : Service() {
     private lateinit var appsManager: SidebarAppsManager
     private var appsPageView: AppsPageView? = null
     private var appPickerOverlayView: AppPickerOverlayView? = null
+    private var addElementOverlayView: AddElementOverlayView? = null
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
     private var isSpeaking = false
@@ -144,7 +145,7 @@ class FloatingReaderService : Service() {
         }
 
         appsPageView = AppsPageView(this, appsManager, serviceScope,
-            onShowAppPicker = { showAppPicker() },
+            onShowAppPicker = { showAddElementOverlay() },
             onCloseSidebar = { sidebarView?.detach() }
         )
         
@@ -165,6 +166,20 @@ class FloatingReaderService : Service() {
             }
         }
         sidebarView?.attach()
+    }
+
+    private fun showAddElementOverlay() {
+        if (addElementOverlayView == null) {
+            addElementOverlayView = AddElementOverlayView(
+                this, appsManager, windowManager,
+                onClose = { addElementOverlayView?.detach() },
+                onAppSelected = { 
+                    addElementOverlayView?.detach()
+                    showAppPicker() 
+                }
+            )
+        }
+        addElementOverlayView?.attach()
     }
 
     private fun showAppPicker() {
@@ -2302,6 +2317,8 @@ class FloatingReaderService : Service() {
         defaultSidebarPage = null
         appPickerOverlayView?.detach()
         appPickerOverlayView = null
+        addElementOverlayView?.detach()
+        addElementOverlayView = null
         appsPageView = null
         if (::appsManager.isInitialized) {
             appsManager.destroy()
