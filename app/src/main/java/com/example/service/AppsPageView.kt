@@ -80,13 +80,13 @@ class AppsPageView(
         addView(recyclerView)
     }
 
-    fun updateData(apps: List<AppInfo>) {
+    fun updateData(apps: List<SidebarItem>) {
         adapter.items = apps
         adapter.notifyDataSetChanged()
     }
 
     private inner class AppsAdapter : RecyclerView.Adapter<AppViewHolder>() {
-        var items: List<AppInfo> = emptyList()
+        var items: List<SidebarItem> = emptyList()
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): AppViewHolder {
             val view = LayoutInflater.from(parent.context).inflate(R.layout.item_sidebar_app, parent, false)
@@ -105,33 +105,60 @@ class AppsPageView(
         val icon: android.widget.ImageView = view.findViewById(R.id.app_icon)
         val label: TextView = view.findViewById(R.id.app_label)
         
-        fun bind(appInfo: AppInfo) {
-            label.text = appInfo.label
+        fun bind(item: SidebarItem) {
+            label.text = item.label
             icon.setImageDrawable(null)
             icon.setBackgroundColor(android.graphics.Color.DKGRAY)
             
             itemView.setOnClickListener {
-                val intent = context.packageManager.getLaunchIntentForPackage(appInfo.packageName)
-                if (intent != null) {
-                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(intent)
+                if (item is SidebarItem.App) {
+                    val intent = context.packageManager.getLaunchIntentForPackage(item.packageName)
+                    if (intent != null) {
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                        onCloseSidebar()
+                    }
+                } else if (item is SidebarItem.SystemAction) {
+                    val service = VianSideAccessibilityService.instance
+                    if (service != null && service.performAction(item.action)) {
+                        // success
+                    } else {
+                        android.widget.Toast.makeText(context, "Please enable VianSide Accessibility Service", android.widget.Toast.LENGTH_SHORT).show()
+                        val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        try {
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
                     onCloseSidebar()
                 }
             }
 
             itemView.setOnLongClickListener {
-                manager.removeApp(appInfo.packageName)
+                manager.removeItem(item.id)
                 true
             }
 
-            serviceScope.launch {
-                val bitmap = manager.loadIcon(appInfo.packageName)
-                if (bitmap != null) {
-                    withContext(Dispatchers.Main) {
-                        icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                        icon.setImageBitmap(bitmap)
+            if (item is SidebarItem.App) {
+                serviceScope.launch {
+                    val bitmap = manager.loadIcon(item.packageName)
+                    if (bitmap != null) {
+                        withContext(Dispatchers.Main) {
+                            icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            icon.setImageBitmap(bitmap)
+                        }
                     }
                 }
+            } else if (item is SidebarItem.SystemAction) {
+                icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                icon.setImageResource(item.iconResId)
+                icon.setColorFilter(android.graphics.Color.WHITE)
             }
         }
     }

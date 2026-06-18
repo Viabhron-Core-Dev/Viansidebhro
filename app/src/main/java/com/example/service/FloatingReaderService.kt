@@ -141,7 +141,7 @@ class FloatingReaderService : Service() {
         setupFloatingView()
 
         appsManager = SidebarAppsManager(this, prefs, serviceScope) {
-            appsPageView?.updateData(appsManager.activeApps)
+            appsPageView?.updateData(appsManager.activeItems)
         }
 
         appsPageView = AppsPageView(this, appsManager, serviceScope,

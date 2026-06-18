@@ -141,7 +141,7 @@ class AppPickerOverlayView(
             icon.setImageDrawable(null)
             
             itemView.setOnClickListener {
-                manager.addApp(appInfo.packageName)
+                manager.addItem("app:${appInfo.packageName}")
                 close()
             }
 

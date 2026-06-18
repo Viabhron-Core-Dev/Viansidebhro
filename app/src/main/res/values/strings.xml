@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Viansidebhro</string>
+    <string name="accessibility_service_description">VianSide uses the Accessibility Service to perform global system actions like Back, Home, and Recents from the side menu.</string>
 </resources>

@@ -23,13 +23,15 @@ sealed class AddElementItem {
         val iconResId: Int,
         val title: String,
         val count: String = "",
-        val type: ActionType
+        val type: ActionType,
+        val id: String = "" // Added to support system action IDs
     ) : AddElementItem()
 }
 
 enum class ActionType {
     APP, SHORTCUT, FOLDER, LINK, EMPTY_ITEM,
-    SYSTEM, VOLUME, MEDIA, BRIGHTNESS, SCREEN_TIMEOUT, SCREEN_ORIENTATION, WIDGET
+    SYSTEM, VOLUME, MEDIA, BRIGHTNESS, SCREEN_TIMEOUT, SCREEN_ORIENTATION, WIDGET,
+    SPECIFIC_SYSTEM_ACTION
 }
 
 @SuppressLint("ViewConstructor")
@@ -69,15 +71,21 @@ class AddElementOverlayView(
         closeBtn.setOnClickListener { close() }
 
         recyclerView.layoutManager = LinearLayoutManager(context)
-        adapter = AddElementAdapter { actionType ->
-            handleActionClick(actionType)
+        adapter = AddElementAdapter { actionItem ->
+            handleActionClick(actionItem)
         }
         recyclerView.adapter = adapter
 
         isFocusableInTouchMode = true
         setOnKeyListener { _, keyCode, event ->
             if (keyCode == KeyEvent.KEYCODE_BACK && event.action == KeyEvent.ACTION_UP) {
-                close()
+                if (currentMode != Mode.MAIN) {
+                    currentMode = Mode.MAIN
+                    loadData()
+                    updateHeaderTitle("Add element")
+                } else {
+                    close()
+                }
                 true
             } else {
                 false
@@ -87,43 +95,70 @@ class AddElementOverlayView(
         loadData()
     }
 
+    private var currentMode = Mode.MAIN
+
+    enum class Mode {
+        MAIN, SYSTEM_ACTIONS
+    }
+
     private fun loadData() {
         val items = mutableListOf<AddElementItem>()
         
-        // Default actions
-        items.add(AddElementItem.Header("Default actions"))
-        items.add(AddElementItem.Action(android.R.drawable.ic_menu_manage, "App", "(${manager.allInstalledApps.size})", ActionType.APP))
-        items.add(AddElementItem.Action(android.R.drawable.ic_menu_share, "Shortcut", "(9)", ActionType.SHORTCUT))
-        
-        // Special items
-        items.add(AddElementItem.Header("Special items"))
-        items.add(AddElementItem.Action(android.R.drawable.ic_menu_gallery, "Folder", "", ActionType.FOLDER))
-        items.add(AddElementItem.Action(android.R.drawable.ic_menu_set_as, "Link", "", ActionType.LINK))
-        items.add(AddElementItem.Action(android.R.drawable.ic_menu_close_clear_cancel, "Empty item", "", ActionType.EMPTY_ITEM))
-        
-        // Android actions
-        items.add(AddElementItem.Header("Android actions"))
-        items.add(AddElementItem.Action(android.R.drawable.ic_menu_info_details, "System", "(12)", ActionType.SYSTEM))
-        items.add(AddElementItem.Action(android.R.drawable.ic_lock_silent_mode_off, "Volume", "(36)", ActionType.VOLUME))
-        items.add(AddElementItem.Action(android.R.drawable.ic_media_play, "Media", "(6)", ActionType.MEDIA))
-        items.add(AddElementItem.Action(android.R.drawable.ic_menu_day, "Brightness", "(11)", ActionType.BRIGHTNESS))
-        items.add(AddElementItem.Action(android.R.drawable.ic_lock_idle_low_battery, "Screen timeout", "(7)", ActionType.SCREEN_TIMEOUT))
-        items.add(AddElementItem.Action(android.R.drawable.ic_menu_always_landscape_portrait, "Screen orientation", "(15)", ActionType.SCREEN_ORIENTATION))
-        items.add(AddElementItem.Action(android.R.drawable.ic_menu_gallery, "Widget", "(50)", ActionType.WIDGET))
+        if (currentMode == Mode.MAIN) {
+            // Default actions
+            items.add(AddElementItem.Header("Default actions"))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_manage, "App", "(${manager.allInstalledApps.size})", ActionType.APP))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_share, "Shortcut", "(9)", ActionType.SHORTCUT))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_gallery, "Widget", "(50)", ActionType.WIDGET))
+            
+            // Special items
+            items.add(AddElementItem.Header("Special items"))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_gallery, "Folder", "", ActionType.FOLDER))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_set_as, "Link", "", ActionType.LINK))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_close_clear_cancel, "Empty item", "", ActionType.EMPTY_ITEM))
+            
+            // Android actions
+            items.add(AddElementItem.Header("Android actions"))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_info_details, "System", "(${ALL_SYSTEM_ACTIONS.size})", ActionType.SYSTEM))
+            items.add(AddElementItem.Action(android.R.drawable.ic_lock_silent_mode_off, "Volume", "(36)", ActionType.VOLUME))
+            items.add(AddElementItem.Action(android.R.drawable.ic_media_play, "Media", "(6)", ActionType.MEDIA))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_day, "Brightness", "(11)", ActionType.BRIGHTNESS))
+            items.add(AddElementItem.Action(android.R.drawable.ic_lock_idle_low_battery, "Screen timeout", "(7)", ActionType.SCREEN_TIMEOUT))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_always_landscape_portrait, "Screen orientation", "(15)", ActionType.SCREEN_ORIENTATION))
+        } else if (currentMode == Mode.SYSTEM_ACTIONS) {
+            items.add(AddElementItem.Header("System actions"))
+            for (action in ALL_SYSTEM_ACTIONS) {
+                items.add(AddElementItem.Action(action.iconResId, action.label, "", ActionType.SPECIFIC_SYSTEM_ACTION, action.id))
+            }
+        }
 
         adapter.items = items
         adapter.notifyDataSetChanged()
     }
 
-    private fun handleActionClick(type: ActionType) {
-        when (type) {
+    private fun handleActionClick(item: AddElementItem.Action) {
+        when (item.type) {
             ActionType.APP -> {
                 onAppSelected()
             }
+            ActionType.SYSTEM -> {
+                currentMode = Mode.SYSTEM_ACTIONS
+                loadData()
+                updateHeaderTitle("System")
+            }
+            ActionType.SPECIFIC_SYSTEM_ACTION -> {
+                manager.addItem(item.id)
+                close()
+            }
             else -> {
-                Toast.makeText(context, "${type.name} selected (Coming soon)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "${item.type.name} selected (Coming soon)", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    private fun updateHeaderTitle(title: String) {
+        val tv = findViewById<TextView>(R.id.add_element_title)
+        tv?.text = title
     }
 
     fun attach() {
@@ -145,7 +180,7 @@ class AddElementOverlayView(
     }
 
     private inner class AddElementAdapter(
-        private val onItemClick: (ActionType) -> Unit
+        private val onItemClick: (AddElementItem.Action) -> Unit
     ) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
         var items: List<AddElementItem> = emptyList()
 
@@ -179,7 +214,7 @@ class AddElementOverlayView(
                 holder.count.visibility = if (item.count.isNotEmpty()) View.VISIBLE else View.GONE
                 
                 holder.itemView.setOnClickListener {
-                    onItemClick(item.type)
+                    onItemClick(item)
                 }
             }
         }

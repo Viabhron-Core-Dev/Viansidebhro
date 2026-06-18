@@ -17,6 +17,37 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
+sealed class SidebarItem {
+    abstract val id: String
+    abstract val label: String
+
+    data class App(
+        val packageName: String,
+        override val label: String
+    ) : SidebarItem() {
+        override val id = "app:$packageName"
+    }
+
+    data class SystemAction(
+        val action: String,
+        override val label: String,
+        val iconResId: Int
+    ) : SidebarItem() {
+        override val id = "system:$action"
+    }
+}
+
+val ALL_SYSTEM_ACTIONS = listOf(
+    SidebarItem.SystemAction("back", "Back", android.R.drawable.ic_menu_revert),
+    SidebarItem.SystemAction("home", "Home", android.R.drawable.ic_menu_compass),
+    SidebarItem.SystemAction("lock_screen", "Lock screen", android.R.drawable.ic_lock_power_off),
+    SidebarItem.SystemAction("notifications", "Notifications", android.R.drawable.ic_menu_info_details),
+    SidebarItem.SystemAction("quick_settings", "Quick settings", android.R.drawable.ic_menu_manage),
+    SidebarItem.SystemAction("recents", "Recents", android.R.drawable.ic_menu_recent_history),
+    SidebarItem.SystemAction("screenshot", "Screenshot", android.R.drawable.ic_menu_camera),
+    SidebarItem.SystemAction("splitscreen", "Splitscreen", android.R.drawable.ic_menu_gallery)
+)
+
 data class AppInfo(
     val packageName: String,
     val label: String
@@ -29,7 +60,7 @@ class SidebarAppsManager(
     private val onAppsUpdated: () -> Unit
 ) {
 
-    var activeApps = listOf<AppInfo>()
+    var activeItems = listOf<SidebarItem>()
         private set
 
     var allInstalledApps = listOf<AppInfo>()
@@ -105,19 +136,33 @@ class SidebarAppsManager(
     private suspend fun loadActiveApps() = withContext(Dispatchers.IO) {
         val jsonStr = prefs.getString("sidebar_apps", "[]") ?: "[]"
         val jsonArray = JSONArray(jsonStr)
-        val selectedPackages = mutableListOf<String>()
+        val selectedIds = mutableListOf<String>()
         for (i in 0 until jsonArray.length()) {
-            selectedPackages.add(jsonArray.getString(i))
-        }
-
-        val result = mutableListOf<AppInfo>()
-        for (pkg in selectedPackages) {
-            val appInfo = allInstalledApps.find { it.packageName == pkg }
-            if (appInfo != null) {
-                result.add(appInfo)
+            val itemStr = jsonArray.getString(i)
+            if (!itemStr.contains(":")) {
+                selectedIds.add("app:$itemStr")
+            } else {
+                selectedIds.add(itemStr)
             }
         }
-        activeApps = result
+
+        val result = mutableListOf<SidebarItem>()
+        for (id in selectedIds) {
+            if (id.startsWith("app:")) {
+                val pkg = id.substringAfter("app:")
+                val appInfo = allInstalledApps.find { it.packageName == pkg }
+                if (appInfo != null) {
+                    result.add(SidebarItem.App(appInfo.packageName, appInfo.label))
+                }
+            } else if (id.startsWith("system:")) {
+                val action = id.substringAfter("system:")
+                val sysAction = ALL_SYSTEM_ACTIONS.find { it.action == action }
+                if (sysAction != null) {
+                    result.add(SidebarItem.SystemAction(action, sysAction.label, sysAction.iconResId))
+                }
+            }
+        }
+        activeItems = result
     }
 
     suspend fun loadIcon(packageName: String): Bitmap? = withContext(Dispatchers.IO) {
@@ -155,14 +200,16 @@ class SidebarAppsManager(
         }
     }
 
-    fun addApp(packageName: String) {
+    fun addItem(id: String) {
         coroutineScope.launch(Dispatchers.IO) {
             val currentStr = prefs.getString("sidebar_apps", "[]") ?: "[]"
             val current = JSONArray(currentStr)
             for (i in 0 until current.length()) {
-                if (current.getString(i) == packageName) return@launch
+                var item = current.getString(i)
+                if (!item.contains(":")) item = "app:$item"
+                if (item == id) return@launch
             }
-            current.put(packageName)
+            current.put(id)
             prefs.edit().putString("sidebar_apps", current.toString()).apply()
             loadActiveApps()
             withContext(Dispatchers.Main) {
@@ -171,14 +218,16 @@ class SidebarAppsManager(
         }
     }
 
-    fun removeApp(packageName: String) {
+    fun removeItem(id: String) {
         coroutineScope.launch(Dispatchers.IO) {
             val currentStr = prefs.getString("sidebar_apps", "[]") ?: "[]"
             val current = JSONArray(currentStr)
             val newArray = JSONArray()
             for (i in 0 until current.length()) {
-                if (current.getString(i) != packageName) {
-                    newArray.put(current.getString(i))
+                var item = current.getString(i)
+                if (!item.contains(":")) item = "app:$item"
+                if (item != id) {
+                    newArray.put(item)
                 }
             }
             prefs.edit().putString("sidebar_apps", newArray.toString()).apply()
