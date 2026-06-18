@@ -65,6 +65,9 @@ class FloatingReaderService : Service() {
     private var triggerHandleView: TriggerHandleView? = null
     private var sidebarView: SidebarView? = null
     private var defaultSidebarPage: View? = null
+    private lateinit var appsManager: SidebarAppsManager
+    private var appsPageView: AppsPageView? = null
+    private var appPickerOverlayView: AppPickerOverlayView? = null
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
     private var isSpeaking = false
@@ -136,16 +139,17 @@ class FloatingReaderService : Service() {
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         setupFloatingView()
 
-        // Create the default sidebar page ONCE
-        defaultSidebarPage = android.widget.TextView(this).apply {
-            text = "Apps Page Placeholder"
-            setTextColor(android.graphics.Color.WHITE)
-            gravity = android.view.Gravity.CENTER
-            layoutParams = android.widget.FrameLayout.LayoutParams(
-                android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
-                android.widget.FrameLayout.LayoutParams.MATCH_PARENT
-            )
+        appsManager = SidebarAppsManager(this, prefs, serviceScope) {
+            appsPageView?.updateData(appsManager.activeApps)
         }
+
+        appsPageView = AppsPageView(this, appsManager, serviceScope,
+            onShowAppPicker = { showAppPicker() },
+            onCloseSidebar = { sidebarView?.detach() }
+        )
+        
+        defaultSidebarPage = appsPageView
+        appsManager.ensureLoaded()
 
         triggerHandleView = TriggerHandleView(this, prefs, windowManager) {
             android.util.Log.d("VianSide", "trigger tapped")
@@ -161,6 +165,15 @@ class FloatingReaderService : Service() {
             }
         }
         sidebarView?.attach()
+    }
+
+    private fun showAppPicker() {
+        if (appPickerOverlayView == null) {
+            appPickerOverlayView = AppPickerOverlayView(this, appsManager, serviceScope, windowManager) {
+                appPickerOverlayView?.detach()
+            }
+        }
+        appPickerOverlayView?.attach()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -2287,6 +2300,12 @@ class FloatingReaderService : Service() {
         sidebarView?.detach()
         sidebarView = null
         defaultSidebarPage = null
+        appPickerOverlayView?.detach()
+        appPickerOverlayView = null
+        appsPageView = null
+        if (::appsManager.isInitialized) {
+            appsManager.destroy()
+        }
         triggerHandleView?.detach()
         triggerHandleView = null
         saveCurrentPosition()

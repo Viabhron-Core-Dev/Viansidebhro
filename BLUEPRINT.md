@@ -358,6 +358,11 @@ Sidebar settings:
 - Background color and transparency
 - Auto-close: toggle + timeout duration (ms)
 
+Apps Page settings:
+- Grid columns: 3 / 4 / 5 (default 3)
+- Grid length mode: Wrap content / Match parent (default Wrap content)
+- Grid stick mode (Alignment): Top / Bottom / Center (default Bottom Right/Left depending on edge)
+
 Display controls settings:
 - WRITE_SETTINGS permission status and grant button if not granted
 
