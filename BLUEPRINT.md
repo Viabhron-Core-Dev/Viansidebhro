@@ -308,13 +308,14 @@ Scope: System action shortcut elements in sidebar.
   Recents / Screenshot / Toggle splitscreen
 - Implementation:
   - If AccessibilityService enabled: use performGlobalAction() — most reliable
-  - Fallback: Android API equivalents (StatusBarManager, PowerManager, etc.)
+  - For Screenshot: prioritize AccessibilityService.takeScreenshot() (API 30+) to capture and save the image to the custom folder specified in Phase F7 settings.
+  - Fallback: Android API equivalents or performGlobalAction(GLOBAL_ACTION_TAKE_SCREENSHOT) (which saves to system default folder).
   - Degrade gracefully if API unavailable — log, never crash
 - Long press 1.5s+ → Remove only (no App Info for system actions)
 - Addable from sidebar add menu under "System Actions" section
 - Each action stored as type enum in sidebar element JSON
 - Requires EXPAND_STATUS_BAR — add to manifest here
-- Goal: system actions execute correctly, graceful degradation if accessibility unavailable
+- Goal: system actions execute correctly, custom screenshot saving works, graceful degradation if accessibility unavailable
 
 ### Phase F5 — Sidebar Volume and Media Controls
 Scope: Audio control elements in sidebar.
@@ -329,16 +330,16 @@ Scope: Audio control elements in sidebar.
 - Addable from sidebar add menu under "Volume" and "Media" sections
 - Goal: all volume and media controls functional when tapped
 
-### Phase F6 — Sidebar Display Controls
-Scope: Brightness, timeout, orientation elements in sidebar.
-- Brightness: 11 levels (0%-100%) via Settings.System.SCREEN_BRIGHTNESS
-- Screen timeout: 7 options (15s / 30s / 1min / 2min / 5min / 10min / 30min)
+### Phase F6 — Sidebar Display Controls (IMPLEMENTED)
+Scope: Brightness, timeout, orientation elements in sidebar (discrete button approach).
+- Brightness: Up (+25) / Down (-25) / Toggle Auto via Settings.System.SCREEN_BRIGHTNESS
+- Screen timeout: Cycle through common values (15s/30s/1m/2m/5m/10m)
   via Settings.System.SCREEN_OFF_TIMEOUT
-- Screen orientation: Auto / Portrait / Landscape
-  via Settings.System.ACCELEROMETER_ROTATION and USER_ROTATION
-- Requires WRITE_SETTINGS — add to manifest here
-  Permission grant: ACTION_MANAGE_WRITE_SETTINGS intent, prompted in MainActivity
-- Addable from sidebar add menu under "Display" section
+- Screen orientation: Toggle Auto / Portrait locked
+  via Settings.System.ACCELEROMETER_ROTATION
+- Requires WRITE_SETTINGS — add to manifest.
+  Permission grant: ACTION_MANAGE_WRITE_SETTINGS intent, prompted on action tap if not granted.
+- Addable from sidebar add menu under "Display Controls" section
 - Goal: display controls functional when tapped
 
 ### Phase F7 — Settings Integration
@@ -376,7 +377,7 @@ Call recorder settings (placeholder — wired up in Phase F10 onwards):
 - Enable/disable toggle
 
 Screenshot save folder:
-- Storage Access Framework folder picker
+- Storage Access Framework folder picker (used by F4 custom screenshot saving)
 
 All settings persisted to SharedPreferences.
 Goal: settings infrastructure in place before pages and gestures are built

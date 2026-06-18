@@ -106,7 +106,7 @@ class AddElementOverlayView(
     private var currentMode = Mode.MAIN
 
     enum class Mode {
-        MAIN, SYSTEM_ACTIONS, VOLUME_ACTIONS, MEDIA_ACTIONS
+        MAIN, SYSTEM_ACTIONS, VOLUME_ACTIONS, MEDIA_ACTIONS, DISPLAY_ACTIONS
     }
 
     private fun loadData() {
@@ -130,9 +130,7 @@ class AddElementOverlayView(
             items.add(AddElementItem.Action(android.R.drawable.ic_menu_info_details, "System", "(${ALL_SYSTEM_ACTIONS.size})", ActionType.SYSTEM))
             items.add(AddElementItem.Action(android.R.drawable.ic_lock_silent_mode_off, "Volume", "(${ALL_VOLUME_ACTIONS.size})", ActionType.VOLUME))
             items.add(AddElementItem.Action(android.R.drawable.ic_media_play, "Media", "(${ALL_MEDIA_ACTIONS.size})", ActionType.MEDIA))
-            items.add(AddElementItem.Action(android.R.drawable.ic_menu_day, "Brightness", "(11)", ActionType.BRIGHTNESS))
-            items.add(AddElementItem.Action(android.R.drawable.ic_lock_idle_low_battery, "Screen timeout", "(7)", ActionType.SCREEN_TIMEOUT))
-            items.add(AddElementItem.Action(android.R.drawable.ic_menu_always_landscape_portrait, "Screen orientation", "(15)", ActionType.SCREEN_ORIENTATION))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_day, "Display Controls", "(${ALL_DISPLAY_ACTIONS.size})", ActionType.BRIGHTNESS))
         } else if (currentMode == Mode.SYSTEM_ACTIONS) {
             items.add(AddElementItem.Header("System actions"))
             for (action in ALL_SYSTEM_ACTIONS) {
@@ -146,6 +144,11 @@ class AddElementOverlayView(
         } else if (currentMode == Mode.MEDIA_ACTIONS) {
             items.add(AddElementItem.Header("Media actions"))
             for (action in ALL_MEDIA_ACTIONS) {
+                items.add(AddElementItem.Action(action.iconResId, action.label, "", ActionType.SPECIFIC_SYSTEM_ACTION, action.id))
+            }
+        } else if (currentMode == Mode.DISPLAY_ACTIONS) {
+            items.add(AddElementItem.Header("Display actions"))
+            for (action in ALL_DISPLAY_ACTIONS) {
                 items.add(AddElementItem.Action(action.iconResId, action.label, "", ActionType.SPECIFIC_SYSTEM_ACTION, action.id))
             }
         }
@@ -173,6 +176,11 @@ class AddElementOverlayView(
                 currentMode = Mode.MEDIA_ACTIONS
                 loadData()
                 updateHeaderTitle("Media")
+            }
+            ActionType.BRIGHTNESS -> {
+                currentMode = Mode.DISPLAY_ACTIONS
+                loadData()
+                updateHeaderTitle("Display")
             }
             ActionType.SPECIFIC_SYSTEM_ACTION -> {
                 manager.addItem(item.id)

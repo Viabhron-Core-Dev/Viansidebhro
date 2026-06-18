@@ -157,6 +157,13 @@ class AppsPageView(
                         e.printStackTrace()
                     }
                     onCloseSidebar()
+                } else if (item is SidebarItem.DisplayAction) {
+                    try {
+                        DisplayHandler.handleDisplayAction(context, item.action)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    onCloseSidebar()
                 }
             }
 
@@ -184,6 +191,10 @@ class AppsPageView(
                 icon.setImageResource(item.iconResId)
                 icon.setColorFilter(android.graphics.Color.WHITE)
             } else if (item is SidebarItem.MediaAction) {
+                icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                icon.setImageResource(item.iconResId)
+                icon.setColorFilter(android.graphics.Color.WHITE)
+            } else if (item is SidebarItem.DisplayAction) {
                 icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 icon.setImageResource(item.iconResId)
                 icon.setColorFilter(android.graphics.Color.WHITE)

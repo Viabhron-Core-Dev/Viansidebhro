@@ -52,6 +52,14 @@ sealed class SidebarItem {
     ) : SidebarItem() {
         override val id = "media:$action"
     }
+
+    data class DisplayAction(
+        val action: String,
+        override val label: String,
+        val iconResId: Int
+    ) : SidebarItem() {
+        override val id = "display:$action"
+    }
 }
 
 val ALL_SYSTEM_ACTIONS = listOf(
@@ -99,6 +107,14 @@ val ALL_MEDIA_ACTIONS = listOf(
     SidebarItem.MediaAction("next", "Next", android.R.drawable.ic_media_next),
     SidebarItem.MediaAction("previous", "Previous", android.R.drawable.ic_media_previous),
     SidebarItem.MediaAction("stop", "Stop", android.R.drawable.ic_media_pause)
+)
+
+val ALL_DISPLAY_ACTIONS = listOf(
+    SidebarItem.DisplayAction("brightness_up", "Brightness +", android.R.drawable.ic_menu_more),
+    SidebarItem.DisplayAction("brightness_down", "Brightness -", android.R.drawable.ic_menu_more),
+    SidebarItem.DisplayAction("brightness_auto", "Brightness Auto", android.R.drawable.ic_menu_day),
+    SidebarItem.DisplayAction("timeout_cycle", "Screen Timeout", android.R.drawable.ic_menu_recent_history),
+    SidebarItem.DisplayAction("orientation_toggle", "Rotation Toggle", android.R.drawable.ic_menu_always_landscape_portrait)
 )
 
 data class AppInfo(
@@ -224,6 +240,12 @@ class SidebarAppsManager(
                 val mediaAction = ALL_MEDIA_ACTIONS.find { it.action == actionId }
                 if (mediaAction != null) {
                     result.add(SidebarItem.MediaAction(actionId, mediaAction.label, mediaAction.iconResId))
+                }
+            } else if (id.startsWith("display:")) {
+                val actionId = id.substringAfter("display:")
+                val displayAction = ALL_DISPLAY_ACTIONS.find { it.action == actionId }
+                if (displayAction != null) {
+                    result.add(SidebarItem.DisplayAction(actionId, displayAction.label, displayAction.iconResId))
                 }
             }
         }
