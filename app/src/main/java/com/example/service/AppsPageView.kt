@@ -143,6 +143,20 @@ class AppsPageView(
                         }
                     }
                     onCloseSidebar()
+                } else if (item is SidebarItem.VolumeAction) {
+                    try {
+                        MediaVolumeHandler.handleVolumeAction(context, item.stream, item.action)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    onCloseSidebar()
+                } else if (item is SidebarItem.MediaAction) {
+                    try {
+                        MediaVolumeHandler.handleMediaAction(context, item.action)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                    onCloseSidebar()
                 }
             }
 
@@ -162,6 +176,14 @@ class AppsPageView(
                     }
                 }
             } else if (item is SidebarItem.SystemAction) {
+                icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                icon.setImageResource(item.iconResId)
+                icon.setColorFilter(android.graphics.Color.WHITE)
+            } else if (item is SidebarItem.VolumeAction) {
+                icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                icon.setImageResource(item.iconResId)
+                icon.setColorFilter(android.graphics.Color.WHITE)
+            } else if (item is SidebarItem.MediaAction) {
                 icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 icon.setImageResource(item.iconResId)
                 icon.setColorFilter(android.graphics.Color.WHITE)

@@ -35,6 +35,23 @@ sealed class SidebarItem {
     ) : SidebarItem() {
         override val id = "system:$action"
     }
+
+    data class VolumeAction(
+        val stream: String,
+        val action: String,
+        override val label: String,
+        val iconResId: Int
+    ) : SidebarItem() {
+        override val id = "volume:${stream}_$action"
+    }
+
+    data class MediaAction(
+        val action: String,
+        override val label: String,
+        val iconResId: Int
+    ) : SidebarItem() {
+        override val id = "media:$action"
+    }
 }
 
 val ALL_SYSTEM_ACTIONS = listOf(
@@ -47,6 +64,41 @@ val ALL_SYSTEM_ACTIONS = listOf(
     SidebarItem.SystemAction("screenshot", "Screenshot", android.R.drawable.ic_menu_camera),
     SidebarItem.SystemAction("splitscreen", "Splitscreen", android.R.drawable.ic_menu_gallery),
     SidebarItem.SystemAction("log_keeper", "Log Keeper", android.R.drawable.ic_menu_agenda)
+)
+
+val ALL_VOLUME_ACTIONS = listOf(
+    SidebarItem.VolumeAction("ringer", "vol_up", "Ringer Vol+", android.R.drawable.ic_lock_silent_mode_off),
+    SidebarItem.VolumeAction("ringer", "vol_down", "Ringer Vol-", android.R.drawable.ic_lock_silent_mode_off),
+    SidebarItem.VolumeAction("ringer", "mute", "Ringer Mute", android.R.drawable.ic_lock_silent_mode),
+    SidebarItem.VolumeAction("ringer", "unmute", "Ringer Unmute", android.R.drawable.ic_lock_silent_mode_off),
+    SidebarItem.VolumeAction("ringer", "toggle_mute", "Ringer Toggle Mute", android.R.drawable.ic_lock_silent_mode),
+    SidebarItem.VolumeAction("ringer", "mode_silent", "Silent Mode", android.R.drawable.ic_lock_silent_mode),
+    SidebarItem.VolumeAction("ringer", "mode_vibrate", "Vibrate Mode", android.R.drawable.ic_lock_silent_mode_off),
+    SidebarItem.VolumeAction("ringer", "mode_normal", "Normal Mode", android.R.drawable.ic_lock_silent_mode_off),
+    SidebarItem.VolumeAction("ringer", "mode_cycle", "Cycle Mode", android.R.drawable.ic_popup_sync),
+    
+    SidebarItem.VolumeAction("media", "vol_up", "Media Vol+", android.R.drawable.ic_media_play),
+    SidebarItem.VolumeAction("media", "vol_down", "Media Vol-", android.R.drawable.ic_media_play),
+    SidebarItem.VolumeAction("media", "mute", "Media Mute", android.R.drawable.ic_lock_silent_mode_off),
+    SidebarItem.VolumeAction("media", "unmute", "Media Unmute", android.R.drawable.ic_lock_silent_mode),
+    SidebarItem.VolumeAction("media", "toggle_mute", "Media Toggle Mute", android.R.drawable.ic_lock_silent_mode),
+
+    SidebarItem.VolumeAction("notification", "vol_up", "Notif Vol+", android.R.drawable.ic_menu_info_details),
+    SidebarItem.VolumeAction("notification", "vol_down", "Notif Vol-", android.R.drawable.ic_menu_info_details),
+    SidebarItem.VolumeAction("notification", "mute", "Notif Mute", android.R.drawable.ic_lock_silent_mode_off),
+    SidebarItem.VolumeAction("notification", "unmute", "Notif Unmute", android.R.drawable.ic_lock_silent_mode),
+
+    SidebarItem.VolumeAction("alarm", "vol_up", "Alarm Vol+", android.R.drawable.ic_lock_idle_alarm),
+    SidebarItem.VolumeAction("alarm", "vol_down", "Alarm Vol-", android.R.drawable.ic_lock_idle_alarm),
+    SidebarItem.VolumeAction("alarm", "mute", "Alarm Mute", android.R.drawable.ic_lock_silent_mode_off),
+    SidebarItem.VolumeAction("alarm", "unmute", "Alarm Unmute", android.R.drawable.ic_lock_silent_mode)
+)
+
+val ALL_MEDIA_ACTIONS = listOf(
+    SidebarItem.MediaAction("play_pause", "Play/Pause", android.R.drawable.ic_media_play),
+    SidebarItem.MediaAction("next", "Next", android.R.drawable.ic_media_next),
+    SidebarItem.MediaAction("previous", "Previous", android.R.drawable.ic_media_previous),
+    SidebarItem.MediaAction("stop", "Stop", android.R.drawable.ic_media_pause)
 )
 
 data class AppInfo(
@@ -160,6 +212,18 @@ class SidebarAppsManager(
                 val sysAction = ALL_SYSTEM_ACTIONS.find { it.action == action }
                 if (sysAction != null) {
                     result.add(SidebarItem.SystemAction(action, sysAction.label, sysAction.iconResId))
+                }
+            } else if (id.startsWith("volume:")) {
+                val actionId = id.substringAfter("volume:")
+                val volAction = ALL_VOLUME_ACTIONS.find { "${it.stream}_${it.action}" == actionId }
+                if (volAction != null) {
+                    result.add(SidebarItem.VolumeAction(volAction.stream, volAction.action, volAction.label, volAction.iconResId))
+                }
+            } else if (id.startsWith("media:")) {
+                val actionId = id.substringAfter("media:")
+                val mediaAction = ALL_MEDIA_ACTIONS.find { it.action == actionId }
+                if (mediaAction != null) {
+                    result.add(SidebarItem.MediaAction(actionId, mediaAction.label, mediaAction.iconResId))
                 }
             }
         }
