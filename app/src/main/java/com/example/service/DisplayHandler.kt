@@ -42,8 +42,10 @@ object DisplayHandler {
             if (newBrightness < 0) newBrightness = 0
             if (newBrightness > 255) newBrightness = 255
             Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, newBrightness)
+            Toast.makeText(context, "Brightness: ${(newBrightness * 100f / 255).toInt()}%", Toast.LENGTH_SHORT).show()
         } catch (e: Settings.SettingNotFoundException) {
             e.printStackTrace()
+            Toast.makeText(context, "Brightness setting not found", Toast.LENGTH_SHORT).show()
         }
     }
 

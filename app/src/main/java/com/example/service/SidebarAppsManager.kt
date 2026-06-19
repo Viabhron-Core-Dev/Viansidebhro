@@ -203,7 +203,8 @@ class SidebarAppsManager(
     }
 
     private suspend fun loadActiveApps() = withContext(Dispatchers.IO) {
-        val jsonStr = prefs.getString("sidebar_apps", "[]") ?: "[]"
+        var jsonStr = prefs.getString("sidebar_apps", """["system:log_keeper"]""") ?: """["system:log_keeper"]"""
+        if (jsonStr == "[]") jsonStr = """["system:log_keeper"]"""
         val jsonArray = JSONArray(jsonStr)
         val selectedIds = mutableListOf<String>()
         for (i in 0 until jsonArray.length()) {
@@ -289,7 +290,7 @@ class SidebarAppsManager(
 
     fun addItem(id: String) {
         coroutineScope.launch(Dispatchers.IO) {
-            val currentStr = prefs.getString("sidebar_apps", "[]") ?: "[]"
+            val currentStr = prefs.getString("sidebar_apps", """["system:log_keeper"]""") ?: """["system:log_keeper"]"""
             val current = JSONArray(currentStr)
             for (i in 0 until current.length()) {
                 var item = current.getString(i)
@@ -307,7 +308,7 @@ class SidebarAppsManager(
 
     fun removeItem(id: String) {
         coroutineScope.launch(Dispatchers.IO) {
-            val currentStr = prefs.getString("sidebar_apps", "[]") ?: "[]"
+            val currentStr = prefs.getString("sidebar_apps", """["system:log_keeper"]""") ?: """["system:log_keeper"]"""
             val current = JSONArray(currentStr)
             val newArray = JSONArray()
             for (i in 0 until current.length()) {
