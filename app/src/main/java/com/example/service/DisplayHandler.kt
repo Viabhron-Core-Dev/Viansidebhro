@@ -5,6 +5,7 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import com.example.LogKeeper
 
 object DisplayHandler {
     fun handleDisplayAction(context: Context, action: String) {
@@ -19,6 +20,7 @@ object DisplayHandler {
         }
 
         try {
+            LogKeeper.writeLog("DisplayHandler", "Handling action: $action")
             when (action) {
                 "brightness_up" -> adjustBrightness(context, 25)
                 "brightness_down" -> adjustBrightness(context, -25)

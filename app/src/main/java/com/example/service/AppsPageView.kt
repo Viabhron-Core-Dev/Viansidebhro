@@ -127,12 +127,18 @@ class AppsPageView(
                         val intent = android.content.Intent(context, com.example.LogKeeperActivity::class.java)
                         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         context.startActivity(intent)
+                    } else if (item.action == "ebook_reader") {
+                        val intent = android.content.Intent(context, FloatingReaderService::class.java)
+                        intent.putExtra("UNFOLD", true)
+                        context.startService(intent)
                     } else {
                         val service = VianSideAccessibilityService.instance
                         if (service != null && service.performAction(item.action)) {
                             // success
+                            com.example.LogKeeper.writeLog("Sidebar", "System action trigger: ${item.action}")
                         } else {
                             android.widget.Toast.makeText(context, "Please enable VianSide Accessibility Service", android.widget.Toast.LENGTH_SHORT).show()
+                            com.example.LogKeeper.writeLog("Sidebar", "Failed system action trigger: ${item.action}")
                             val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
                             intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                             try {
@@ -145,23 +151,29 @@ class AppsPageView(
                     onCloseSidebar()
                 } else if (item is SidebarItem.VolumeAction) {
                     try {
+                        com.example.LogKeeper.writeLog("Sidebar", "Volume action: ${item.stream}_${item.action}")
                         MediaVolumeHandler.handleVolumeAction(context, item.stream, item.action)
                     } catch (e: Exception) {
                         e.printStackTrace()
+                        com.example.LogKeeper.writeLog("Sidebar", "Volume action err: ${e.message}")
                     }
                     onCloseSidebar()
                 } else if (item is SidebarItem.MediaAction) {
                     try {
+                        com.example.LogKeeper.writeLog("Sidebar", "Media action: ${item.action}")
                         MediaVolumeHandler.handleMediaAction(context, item.action)
                     } catch (e: Exception) {
                         e.printStackTrace()
+                        com.example.LogKeeper.writeLog("Sidebar", "Media action err: ${e.message}")
                     }
                     onCloseSidebar()
                 } else if (item is SidebarItem.DisplayAction) {
                     try {
+                        com.example.LogKeeper.writeLog("Sidebar", "Display action: ${item.action}")
                         DisplayHandler.handleDisplayAction(context, item.action)
                     } catch (e: Exception) {
                         e.printStackTrace()
+                        com.example.LogKeeper.writeLog("Sidebar", "Display action err: ${e.message}")
                     }
                     onCloseSidebar()
                 }

@@ -335,6 +335,12 @@ Scope: Brightness, timeout, orientation elements in sidebar (discrete button app
 - Brightness: Up (+25) / Down (-25) / Toggle Auto via Settings.System.SCREEN_BRIGHTNESS
 - Screen timeout: Cycle through common values (15s/30s/1m/2m/5m/10m)
   via Settings.System.SCREEN_OFF_TIMEOUT
+- Navigation actions are logged using LogKeeper to confirm execution internally.
+
+### Phase F8 — UI and Sidebar adjustments (IMPLEMENTED)
+- "V" Handle removed: FloatingReaderService hides its view entirely when "folded" to prevent overlap.
+- Default integrations: Sidebar defaults expanded to include "Log Keeper" and "eBook Reader".
+- Logging implementation: DisplayHandler, Volume, Media, and System Actions now emit correct tracking traces into AppDatabase via `LogKeeper`.
 - Screen orientation: Toggle Auto / Portrait locked
   via Settings.System.ACCELEROMETER_ROTATION
 - Requires WRITE_SETTINGS — add to manifest.

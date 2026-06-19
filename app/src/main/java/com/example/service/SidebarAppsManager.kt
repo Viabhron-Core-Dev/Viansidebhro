@@ -71,7 +71,8 @@ val ALL_SYSTEM_ACTIONS = listOf(
     SidebarItem.SystemAction("recents", "Recents", android.R.drawable.ic_menu_recent_history),
     SidebarItem.SystemAction("screenshot", "Screenshot", android.R.drawable.ic_menu_camera),
     SidebarItem.SystemAction("splitscreen", "Splitscreen", android.R.drawable.ic_menu_gallery),
-    SidebarItem.SystemAction("log_keeper", "Log Keeper", android.R.drawable.ic_menu_agenda)
+    SidebarItem.SystemAction("log_keeper", "Log Keeper", android.R.drawable.ic_menu_agenda),
+    SidebarItem.SystemAction("ebook_reader", "eBook Reader", com.example.R.drawable.ic_library_books)
 )
 
 val ALL_VOLUME_ACTIONS = listOf(
@@ -203,8 +204,10 @@ class SidebarAppsManager(
     }
 
     private suspend fun loadActiveApps() = withContext(Dispatchers.IO) {
-        var jsonStr = prefs.getString("sidebar_apps", """["system:log_keeper"]""") ?: """["system:log_keeper"]"""
-        if (jsonStr == "[]") jsonStr = """["system:log_keeper"]"""
+        var jsonStr = prefs.getString("sidebar_apps", """["system:log_keeper", "system:ebook_reader"]""") ?: """["system:log_keeper", "system:ebook_reader"]"""
+        if (jsonStr == "[]" || jsonStr == """["system:log_keeper"]""") {
+            jsonStr = """["system:log_keeper", "system:ebook_reader"]"""
+        }
         val jsonArray = JSONArray(jsonStr)
         val selectedIds = mutableListOf<String>()
         for (i in 0 until jsonArray.length()) {
@@ -290,7 +293,7 @@ class SidebarAppsManager(
 
     fun addItem(id: String) {
         coroutineScope.launch(Dispatchers.IO) {
-            val currentStr = prefs.getString("sidebar_apps", """["system:log_keeper"]""") ?: """["system:log_keeper"]"""
+            val currentStr = prefs.getString("sidebar_apps", """["system:log_keeper", "system:ebook_reader"]""") ?: """["system:log_keeper", "system:ebook_reader"]"""
             val current = JSONArray(currentStr)
             for (i in 0 until current.length()) {
                 var item = current.getString(i)
@@ -308,7 +311,7 @@ class SidebarAppsManager(
 
     fun removeItem(id: String) {
         coroutineScope.launch(Dispatchers.IO) {
-            val currentStr = prefs.getString("sidebar_apps", """["system:log_keeper"]""") ?: """["system:log_keeper"]"""
+            val currentStr = prefs.getString("sidebar_apps", """["system:log_keeper", "system:ebook_reader"]""") ?: """["system:log_keeper", "system:ebook_reader"]"""
             val current = JSONArray(currentStr)
             val newArray = JSONArray()
             for (i in 0 until current.length()) {

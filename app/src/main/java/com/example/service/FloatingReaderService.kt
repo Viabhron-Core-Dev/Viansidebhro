@@ -194,6 +194,7 @@ class FloatingReaderService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val bookId = intent?.getIntExtra("BOOK_ID", -1) ?: -1
         val fromLauncher = intent?.getBooleanExtra("OPEN_FROM_LAUNCHER", false) ?: false
+        val unfold = intent?.getBooleanExtra("UNFOLD", false) ?: false
         
         if (fromLauncher) {
             val lastBook = prefs.getInt("last_book_id", -1)
@@ -206,6 +207,10 @@ class FloatingReaderService : Service() {
             }
         } else if (bookId != -1) {
             loadBook(bookId)
+            setFolded(false)
+        } else if (unfold) {
+            val lastBook = prefs.getInt("last_book_id", -1)
+            if (currentBook == null && lastBook != -1) loadBook(lastBook)
             setFolded(false)
         }
         return START_NOT_STICKY
@@ -2257,8 +2262,9 @@ class FloatingReaderService : Service() {
                 .putInt("win_y", savedWindowY)
                 .apply()
 
-            bubbleIcon.visibility = View.VISIBLE
+            bubbleIcon.visibility = View.GONE
             windowContainer.visibility = View.GONE
+            floatingView.visibility = View.GONE
             layoutParams.width = WindowManager.LayoutParams.WRAP_CONTENT
             layoutParams.height = WindowManager.LayoutParams.WRAP_CONTENT
             layoutParams.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -2279,6 +2285,7 @@ class FloatingReaderService : Service() {
 
             bubbleIcon.visibility = View.GONE
             windowContainer.visibility = View.VISIBLE
+            floatingView.visibility = View.VISIBLE
             toolbarContainer.visibility = View.GONE
             
             val metrics = resources.displayMetrics
