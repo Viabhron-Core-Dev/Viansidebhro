@@ -5,11 +5,15 @@ import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.widget.Toast
+import android.hardware.camera2.CameraManager
 import com.example.LogKeeper
 
 object DisplayHandler {
+    private var torchEnabled = false
+    private var torchCallbackRegistered = false
+
     fun handleDisplayAction(context: Context, action: String) {
-        if (!Settings.System.canWrite(context)) {
+        if (!Settings.System.canWrite(context) && action != "torch_toggle") {
             val intent = Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS).apply {
                 data = Uri.parse("package:${context.packageName}")
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -22,9 +26,7 @@ object DisplayHandler {
         try {
             LogKeeper.writeLog("DisplayHandler", "Handling action: $action")
             when (action) {
-                "brightness_up" -> adjustBrightness(context, 25)
-                "brightness_down" -> adjustBrightness(context, -25)
-                "brightness_auto" -> toggleAutoBrightness(context)
+                "torch_toggle" -> toggleTorch(context)
                 "timeout_cycle" -> cycleScreenTimeout(context)
                 "orientation_toggle" -> toggleOrientationLock(context)
             }
@@ -34,37 +36,25 @@ object DisplayHandler {
         }
     }
 
-    private fun adjustBrightness(context: Context, delta: Int) {
-        val resolver = context.contentResolver
+    private fun toggleTorch(context: Context) {
         try {
-            // Ensure manual mode before adjusting
-            Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE, Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL)
-            val current = Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS)
-            var newBrightness = current + delta
-            if (newBrightness < 0) newBrightness = 0
-            if (newBrightness > 255) newBrightness = 255
-            Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS, newBrightness)
-            Toast.makeText(context, "Brightness: ${(newBrightness * 100f / 255).toInt()}%", Toast.LENGTH_SHORT).show()
-        } catch (e: Settings.SettingNotFoundException) {
-            e.printStackTrace()
-            Toast.makeText(context, "Brightness setting not found", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun toggleAutoBrightness(context: Context) {
-        val resolver = context.contentResolver
-        try {
-            val currentMode = Settings.System.getInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE)
-            val newMode = if (currentMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) {
-                Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL
-            } else {
-                Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC
+            val cameraManager = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
+            if (!torchCallbackRegistered) {
+                cameraManager.registerTorchCallback(object : CameraManager.TorchCallback() {
+                    override fun onTorchModeChanged(cameraId: String, enabled: Boolean) {
+                        torchEnabled = enabled
+                    }
+                }, null)
+                torchCallbackRegistered = true
             }
-            Settings.System.putInt(resolver, Settings.System.SCREEN_BRIGHTNESS_MODE, newMode)
-            val modeStr = if (newMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) "Auto" else "Manual"
-            Toast.makeText(context, "Brightness: $modeStr", Toast.LENGTH_SHORT).show()
-        } catch (e: Settings.SettingNotFoundException) {
+            val cameraId = cameraManager.cameraIdList.firstOrNull() ?: return
+            
+            val newState = !torchEnabled
+            cameraManager.setTorchMode(cameraId, newState)
+            torchEnabled = newState
+        } catch (e: Exception) {
             e.printStackTrace()
+            Toast.makeText(context, "Torch not available", Toast.LENGTH_SHORT).show()
         }
     }
 

@@ -111,9 +111,7 @@ val ALL_MEDIA_ACTIONS = listOf(
 )
 
 val ALL_DISPLAY_ACTIONS = listOf(
-    SidebarItem.DisplayAction("brightness_up", "Brightness +", android.R.drawable.ic_menu_more),
-    SidebarItem.DisplayAction("brightness_down", "Brightness -", android.R.drawable.ic_menu_more),
-    SidebarItem.DisplayAction("brightness_auto", "Brightness Auto", android.R.drawable.ic_menu_day),
+    SidebarItem.DisplayAction("torch_toggle", "Flashlight", android.R.drawable.ic_menu_camera),
     SidebarItem.DisplayAction("timeout_cycle", "Screen Timeout", android.R.drawable.ic_menu_recent_history),
     SidebarItem.DisplayAction("orientation_toggle", "Rotation Toggle", android.R.drawable.ic_menu_always_landscape_portrait)
 )

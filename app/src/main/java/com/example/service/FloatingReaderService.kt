@@ -1096,7 +1096,8 @@ class FloatingReaderService : Service() {
 
         floatingView.findViewById<View>(R.id.btn_exit_bottom)?.setOnClickListener {
             saveCurrentPosition()
-            stopSelf()
+            com.example.LogKeeper.writeLog("eBookReader", "Closing reader")
+            setFolded(true)
         }
 
         // Tap content to toggle Moonreader toolbar handled in touch listener now
@@ -1140,7 +1141,8 @@ class FloatingReaderService : Service() {
         }
         floatingView.findViewById<View>(R.id.btn_exit_bottom)?.setOnClickListener {
             saveCurrentPosition()
-            stopSelf()
+            com.example.LogKeeper.writeLog("eBookReader", "Closing reader window")
+            setFolded(true)
         }
 
         floatingView.findViewById<View>(R.id.btn_copy_text)?.setOnClickListener {
@@ -1346,6 +1348,7 @@ class FloatingReaderService : Service() {
             val fetchedBook = db.epubDao().getBookById(bookId)
             var book = fetchedBook?.copy(lastOpenedTimestamp = System.currentTimeMillis())
             if (book != null) {
+                com.example.LogKeeper.writeLog("eBookReader", "Opened book: ${book.title}")
                 // If there's a TrackerBook from Moon+ Reader or track goal, sync reading progress to EPUB
                 val trackerBook = db.trackerDao().getAllBooks().firstOrNull { it.title.equals(book.title, true) }
                 if (trackerBook != null && trackerBook.readChapters > book.lastReadChapter) {
@@ -1376,6 +1379,7 @@ class FloatingReaderService : Service() {
             if (chapterFile.exists()) {
                 val text = chapterFile.readText()
                 withContext(Dispatchers.Main) {
+                    com.example.LogKeeper.writeLog("eBookReader", "Reading Chapter ${currentChapterIndex + 1}")
                     chapterContent = text
                     renderChapter(book.lastReadScrollY, scrollToBottom)
                 }
