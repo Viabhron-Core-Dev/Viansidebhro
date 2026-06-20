@@ -152,14 +152,6 @@
                 android:layout_height="match_parent"
                 android:layout="@layout/overlay_library" />
 
-            <!-- Container for Settings Overlay (Inflated on Demand) -->
-            <ViewStub
-                android:id="@+id/stub_overlay_settings"
-                android:inflatedId="@+id/overlay_settings"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:layout="@layout/overlay_settings" />
-
             <!-- Bookmarks View (Inflated on Demand) -->
             <ViewStub
                 android:id="@+id/stub_overlay_bookmarks"

@@ -62,6 +62,40 @@ class FloatingReaderService : Service() {
     private var librarySearchQuery: String = ""
 
     private lateinit var prefs: SharedPreferences
+    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+        when (key) {
+            "keep_screen_on" -> {
+                if (::windowContainer.isInitialized) {
+                    windowContainer.keepScreenOn = sharedPreferences.getBoolean("keep_screen_on", true)
+                }
+            }
+            "use_scoped_dir" -> {
+                if (overlayLibrary?.visibility == View.VISIBLE) {
+                    loadLibraryBooks()
+                }
+            }
+            "font_size_scale" -> {
+                if (::tvContent.isInitialized) {
+                    tvContent.textSize = 16f * sharedPreferences.getFloat("font_size_scale", 1.0f)
+                }
+            }
+            "use_dark_theme" -> {
+                applyThemeFromPrefs()
+            }
+        }
+    }
+    
+    private fun applyThemeFromPrefs() {
+        if (!::windowContainer.isInitialized) return
+        val isDark = prefs.getBoolean("use_dark_theme", true)
+        val bgColor = if (isDark) android.graphics.Color.parseColor("#222222") else android.graphics.Color.WHITE
+        val txColor = if (isDark) android.graphics.Color.parseColor("#DDDDDD") else android.graphics.Color.BLACK
+        
+        windowContainer.setBackgroundColor(bgColor)
+        tvContent.setTextColor(txColor)
+        overlayChapters?.setBackgroundColor(bgColor)
+        overlayLibrary?.setBackgroundColor(bgColor)
+    }
     private var triggerHandleView: TriggerHandleView? = null
     private var sidebarView: SidebarView? = null
     private var defaultSidebarPage: View? = null
@@ -129,6 +163,7 @@ class FloatingReaderService : Service() {
         }
 
         prefs = getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE)
+        prefs.registerOnSharedPreferenceChangeListener(prefListener)
         loadSettingsFromPrefs()
         savedWindowWidth = prefs.getInt("win_w", 800)
         savedWindowHeight = prefs.getInt("win_h", 1200)
@@ -247,7 +282,6 @@ class FloatingReaderService : Service() {
 
     private var overlayLibrary: View? = null
     private var overlayChapters: View? = null
-    private var overlaySettings: View? = null
     private var overlayBookmarks: View? = null
     private var overlaySearch: View? = null
     private var overlaySearchResults: View? = null
@@ -265,6 +299,9 @@ class FloatingReaderService : Service() {
         tvProgress = floatingView.findViewById(R.id.tv_progress)
         toolbarContainer = floatingView.findViewById(R.id.toolbar_container)
         bubbleIcon = floatingView.findViewById(R.id.bubble_icon)
+        
+        applyThemeFromPrefs()
+        tvContent.textSize = 16f * prefs.getFloat("font_size_scale", 1.0f)
         
         var startX = 0f
         var startY = 0f
@@ -407,7 +444,6 @@ class FloatingReaderService : Service() {
     private fun hideOverlays() {
         overlayLibrary?.visibility = View.GONE
         overlayChapters?.visibility = View.GONE
-        overlaySettings?.visibility = View.GONE
         overlayBookmarks?.visibility = View.GONE
         overlayNotes?.visibility = View.GONE
         overlaySearch?.visibility = View.GONE
@@ -426,7 +462,6 @@ class FloatingReaderService : Service() {
         
         val isAnyOverlayVisible = (overlayLibrary?.visibility == View.VISIBLE ||
                 overlayChapters?.visibility == View.VISIBLE ||
-                overlaySettings?.visibility == View.VISIBLE ||
                 overlayBookmarks?.visibility == View.VISIBLE ||
                 overlayNotes?.visibility == View.VISIBLE ||
                 overlaySearch?.visibility == View.VISIBLE ||
@@ -458,8 +493,7 @@ class FloatingReaderService : Service() {
     private fun updateTopDragBarVisibility() {
         if (overlayLibrary?.visibility == View.VISIBLE ||
             overlayBookmarks?.visibility == View.VISIBLE ||
-            overlayNotes?.visibility == View.VISIBLE ||
-            overlaySettings?.visibility == View.VISIBLE) {
+            overlayNotes?.visibility == View.VISIBLE) {
             topDragBar.visibility = View.GONE
         } else {
             topDragBar.visibility = View.VISIBLE
@@ -737,7 +771,15 @@ class FloatingReaderService : Service() {
 
                 floatingView.findViewById<android.view.View>(R.id.library_header)?.setOnTouchListener(createLongPressDragListener())
 
-                floatingView.findViewById<android.view.View>(R.id.btn_library_settings)?.setOnClickListener { openSettingsView() }
+                // Settings listeners
+                floatingView.findViewById<android.view.View>(R.id.btn_library_settings)?.setOnClickListener {
+                    val intent = Intent(this@FloatingReaderService, com.example.SettingsActivity::class.java).apply {
+                        putExtra("start_route", "general")
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    }
+                    try { startActivity(intent) } catch (e: Exception) { AppLogger.d("Service", "Failed to start settings: ${e.message}") }
+                    setFolded(true)
+                }
                 floatingView.findViewById<android.view.View>(R.id.btn_library_notes)?.setOnClickListener { openNotesView() }
                 floatingView.findViewById<android.view.View>(R.id.btn_library_tracker)?.setOnClickListener {
                     val intent = android.content.Intent(this, com.example.TrackerActivity::class.java).apply {
@@ -825,143 +867,7 @@ class FloatingReaderService : Service() {
         syncWindowStates()
     }
 
-    private fun inflateSettingsIfNeeded() {
-        if (overlaySettings == null) {
-            val stub = floatingView.findViewById<android.view.ViewStub>(R.id.stub_overlay_settings)
-            if (stub != null) {
-                overlaySettings = stub.inflate()
-                
-                // Settings listeners
-                floatingView.findViewById<android.view.View>(R.id.settings_header)?.setOnTouchListener(createLongPressDragListener())
-                
-                floatingView.findViewById<android.view.View>(R.id.btn_settings_back)?.setOnClickListener {
-                    overlaySettings?.visibility = View.GONE
-                    syncWindowStates()
-                }
-                floatingView.findViewById<android.widget.Button>(R.id.btn_backup_data)?.setOnClickListener {
-                    showToast("Backing up data (No Books)...")
-                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) { // Not best practice but simple
-                        val res = com.example.utils.BackupHelper.backupData(this@FloatingReaderService, false)
-                        if (res.isSuccess) {
-                            val path = res.getOrNull() ?: ""
-                            showToast("Backup saved to Downloads: " + java.io.File(path).name)
-                        } else {
-                            showToast("Backup failed: " + res.exceptionOrNull()?.message)
-                        }
-                    }
-                }
-                floatingView.findViewById<android.widget.Button>(R.id.btn_backup_data_books)?.setOnClickListener {
-                    showToast("Backing up full data...")
-                    kotlinx.coroutines.GlobalScope.launch(kotlinx.coroutines.Dispatchers.Main) {
-                        val res = com.example.utils.BackupHelper.backupData(this@FloatingReaderService, true)
-                        if (res.isSuccess) {
-                            val path = res.getOrNull() ?: ""
-                            showToast("Full Backup saved to Downloads: " + java.io.File(path).name)
-                        } else {
-                            showToast("Backup failed: " + res.exceptionOrNull()?.message)
-                        }
-                    }
-                }
-                floatingView.findViewById<android.widget.Button>(R.id.btn_restore_data)?.setOnClickListener {
-                    showToast("Data restored.")
-                }
-                floatingView.findViewById<android.widget.Button>(R.id.btn_export_logs)?.setOnClickListener {
-                    try {
-                        val f = AppLogger.export(this@FloatingReaderService)
-                        val uri = androidx.core.content.FileProvider.getUriForFile(this@FloatingReaderService, "$packageName.provider", f)
-                        val i = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        startActivity(Intent.createChooser(i, "Export Logs").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                    } catch (e: Exception) {
-                        AppLogger.d("Settings", "Export failed: ${e.message}")
-                        showToast("Logs saved to Downloads folder")
-                        AppLogger.export(this@FloatingReaderService)
-                    }
-                }
-                
-                floatingView.findViewById<android.widget.Switch>(R.id.switch_bookmarks)?.setOnCheckedChangeListener { _, isChecked ->
-                    prefs.edit().putBoolean("enable_bookmarks", isChecked).apply()
-                    showToast("Restart app to apply bookmark UI changes")
-                }
-                
-                val switchScoped = floatingView.findViewById<android.widget.Switch>(R.id.switch_scoped_dir)
-                switchScoped?.isChecked = prefs.getBoolean("use_scoped_dir", false)
-                switchScoped?.setOnCheckedChangeListener { _, isChecked ->
-                    if (isChecked && !android.os.Environment.isExternalStorageManager()) {
-                        switchScoped.isChecked = false
-                        try {
-                            val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                                data = android.net.Uri.parse("package:" + applicationContext.packageName)
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            startActivity(intent)
-                        } catch (e: Exception) {
-                            val intent = Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION).apply {
-                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            }
-                            startActivity(intent)
-                        }
-                        showToast("Please grant All Files Access")
-                        return@setOnCheckedChangeListener
-                    }
-                    prefs.edit().putBoolean("use_scoped_dir", isChecked).apply()
-                    if (overlayLibrary?.visibility == View.VISIBLE) {
-                        loadLibraryBooks()
-                    }
-                }
-                
-                floatingView.findViewById<android.widget.Switch>(R.id.switch_tap_to_turn)?.apply {
-                    isChecked = prefs.getBoolean("tap_to_turn", true)
-                    setOnCheckedChangeListener { _, checked ->
-                        prefs.edit().putBoolean("tap_to_turn", checked).apply()
-                    }
-                }
-                
-                floatingView.findViewById<android.widget.Switch>(R.id.switch_keep_screen_on)?.apply {
-                    isChecked = prefs.getBoolean("keep_screen_on", true)
-                    setOnCheckedChangeListener { _, checked ->
-                        prefs.edit().putBoolean("keep_screen_on", checked).apply()
-                        if (checked) {
-                            windowContainer.keepScreenOn = true
-                        } else {
-                            windowContainer.keepScreenOn = false
-                        }
-                    }
-                }
-                
-                floatingView.findViewById<android.widget.Switch>(R.id.switch_theme)?.setOnCheckedChangeListener { _, isChecked ->
-                    // Basic theme mock logic
-                    val bgColor = if (isChecked) android.graphics.Color.WHITE else android.graphics.Color.parseColor("#222222")
-                    val txColor = if (isChecked) android.graphics.Color.BLACK else android.graphics.Color.parseColor("#DDDDDD")
-                    windowContainer.setBackgroundColor(bgColor)
-                    tvContent.setTextColor(txColor)
-                    overlayChapters?.setBackgroundColor(bgColor)
-                    overlayLibrary?.setBackgroundColor(bgColor)
-                    overlaySettings?.setBackgroundColor(bgColor)
-                }
-                
-                floatingView.findViewById<android.widget.SeekBar>(R.id.seek_font_size)?.setOnSeekBarChangeListener(object: android.widget.SeekBar.OnSeekBarChangeListener{
-                    override fun onProgressChanged(seekBar: android.widget.SeekBar?, progress: Int, fromUser: Boolean) {
-                        tvContent.textSize = (12 + progress).toFloat()
-                    }
-                    override fun onStartTrackingTouch(seekBar: android.widget.SeekBar?) {}
-                    override fun onStopTrackingTouch(seekBar: android.widget.SeekBar?) {}
-                })
-            }
-        }
-    }
 
-    private fun openSettingsView() {
-        inflateSettingsIfNeeded()
-        hideOverlays()
-        overlaySettings?.visibility = View.VISIBLE
-        toolbarContainer.visibility = View.GONE
-        tvWindowTitle.text = "Settings"
-        syncWindowStates()
-    }
 
     private fun openNotesView() {
         cameFromLibrary = (overlayLibrary?.visibility == View.VISIBLE)
@@ -1084,7 +990,6 @@ class FloatingReaderService : Service() {
 
         // Make overlay headers draggable too as they replace topDragBar when overlays are shown
         floatingView.findViewById<View>(R.id.notes_header)?.setOnTouchListener(dragListener)
-        floatingView.findViewById<View>(R.id.settings_header)?.setOnTouchListener(dragListener)
         floatingView.findViewById<View>(R.id.bookmarks_header)?.setOnTouchListener(dragListener)
 
         // Click listener for top notes button in reader
@@ -1230,7 +1135,12 @@ class FloatingReaderService : Service() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
         floatingView.findViewById<View>(R.id.btn_settings).setOnClickListener {
-            openSettingsView()
+            val intent = Intent(this@FloatingReaderService, com.example.SettingsActivity::class.java).apply {
+                putExtra("start_route", "reader")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            try { startActivity(intent) } catch (e: Exception) { AppLogger.d("Service", "Failed to start reader settings: ${e.message}") }
+            setFolded(true)
         }
         
         var lastTopBarTapTime = 0L
@@ -1241,7 +1151,7 @@ class FloatingReaderService : Service() {
                 lastTopBarTapTime = 0L
             } else {
                 lastTopBarTapTime = now
-                if (overlayLibrary?.visibility == View.VISIBLE || overlayChapters?.visibility == View.VISIBLE || overlaySettings?.visibility == View.VISIBLE) {
+                if (overlayLibrary?.visibility == View.VISIBLE || overlayChapters?.visibility == View.VISIBLE) {
                     hideOverlays()
                     currentBook?.let { 
                         val displayTitle = it.title.replace(Regex("(?i)\\.epub$"), "")
@@ -2322,6 +2232,9 @@ class FloatingReaderService : Service() {
     }
 
     override fun onDestroy() {
+        if (this::prefs.isInitialized) {
+            prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
+        }
         instance = null
         sidebarView?.detach()
         sidebarView = null
