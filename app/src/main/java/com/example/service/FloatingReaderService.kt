@@ -82,6 +82,37 @@ class FloatingReaderService : Service() {
             "use_dark_theme" -> {
                 applyThemeFromPrefs()
             }
+            "speed_indicator_enabled" -> {
+                netSpeedEnabled = sharedPreferences.getBoolean("speed_indicator_enabled", false)
+                if (netSpeedEnabled) {
+                    if (speedOverlayView == null) {
+                        speedOverlayView = SpeedOverlayView(this@FloatingReaderService, prefs, windowManager)
+                    }
+                    speedOverlayView?.attach()
+                    if (netSpeedManager == null) {
+                        netSpeedManager = NetSpeedManager(this@FloatingReaderService, prefs, 
+                            onSpeedUpdate = { down, up ->
+                                downSpeed = down
+                                upSpeed = up
+                                speedOverlayView?.updateSpeed(down, up)
+                                updatePersistentNotification()
+                            },
+                            onDailyDataUpdate = { mobile, wifi ->
+                                mobileMb = mobile
+                                wifiMb = wifi
+                                updatePersistentNotification()
+                            }
+                        )
+                    }
+                    netSpeedManager?.start()
+                } else {
+                    speedOverlayView?.detach()
+                    netSpeedManager?.stop()
+                }
+            }
+            "speed_indicator_position", "speed_indicator_font_size", "speed_indicator_color" -> {
+                speedOverlayView?.updateAppearance()
+            }
         }
     }
     
@@ -103,6 +134,16 @@ class FloatingReaderService : Service() {
     private var appsPageView: AppsPageView? = null
     private var appPickerOverlayView: AppPickerOverlayView? = null
     private var addElementOverlayView: AddElementOverlayView? = null
+    
+    private var netSpeedManager: NetSpeedManager? = null
+    private var speedOverlayView: SpeedOverlayView? = null
+    private var screenStateReceiver: android.content.BroadcastReceiver? = null
+    private var netSpeedEnabled = false
+    private var mobileMb: Long = 0
+    private var wifiMb: Long = 0
+    private var downSpeed: Long = 0
+    private var upSpeed: Long = 0
+    
     private var tts: TextToSpeech? = null
     private var isTtsReady = false
     private var isSpeaking = false
@@ -192,6 +233,111 @@ class FloatingReaderService : Service() {
             showSidebar()
         }
         triggerHandleView?.attach()
+        
+        setupNetSpeed()
+        updatePersistentNotification()
+    }
+    
+    private fun setupNetSpeed() {
+        val dailyMobileRx = prefs.getLong("daily_mobile_rx", 0)
+        val dailyMobileTx = prefs.getLong("daily_mobile_tx", 0)
+        val dailyWifiRx = prefs.getLong("daily_wifi_rx", 0)
+        val dailyWifiTx = prefs.getLong("daily_wifi_tx", 0)
+        mobileMb = (dailyMobileRx + dailyMobileTx) / (1024 * 1024)
+        wifiMb = (dailyWifiRx + dailyWifiTx) / (1024 * 1024)
+
+        netSpeedEnabled = prefs.getBoolean("speed_indicator_enabled", false)
+        if (netSpeedEnabled) {
+            speedOverlayView = SpeedOverlayView(this, prefs, windowManager)
+            speedOverlayView?.attach()
+            
+            netSpeedManager = NetSpeedManager(this, prefs, 
+                onSpeedUpdate = { down, up ->
+                    downSpeed = down
+                    upSpeed = up
+                    speedOverlayView?.updateSpeed(down, up)
+                    updatePersistentNotification()
+                },
+                onDailyDataUpdate = { mobile, wifi ->
+                    mobileMb = mobile
+                    wifiMb = wifi
+                    updatePersistentNotification()
+                }
+            )
+            netSpeedManager?.start()
+        }
+        
+        screenStateReceiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                when (intent.action) {
+                    Intent.ACTION_SCREEN_ON -> {
+                        if (netSpeedEnabled) netSpeedManager?.start()
+                    }
+                    Intent.ACTION_SCREEN_OFF -> {
+                        if (netSpeedEnabled) netSpeedManager?.stop()
+                    }
+                }
+            }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_SCREEN_OFF)
+        }
+        registerReceiver(screenStateReceiver, filter)
+        
+        // Setup AlarmManager for midnight reset
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        val intent = Intent(this, MidnightResetReceiver::class.java)
+        val pendingIntent = android.app.PendingIntent.getBroadcast(
+            this, 0, intent, android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+        
+        val calendar = java.util.Calendar.getInstance().apply {
+            timeInMillis = System.currentTimeMillis()
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            add(java.util.Calendar.DAY_OF_YEAR, 1)
+        }
+        
+        alarmManager.setRepeating(
+            android.app.AlarmManager.RTC_WAKEUP,
+            calendar.timeInMillis,
+            android.app.AlarmManager.INTERVAL_DAY,
+            pendingIntent
+        )
+    }
+    
+    private fun updatePersistentNotification() {
+        val manager = getSystemService(android.app.NotificationManager::class.java)
+        
+        val notificationIntent = Intent(this, com.example.MainActivity::class.java)
+        val pendingIntent = android.app.PendingIntent.getActivity(this, 0, notificationIntent, android.app.PendingIntent.FLAG_IMMUTABLE)
+
+        val settingsIntent = Intent(this, com.example.SettingsActivity::class.java)
+        val settingsPendingIntent = android.app.PendingIntent.getActivity(this, 1, settingsIntent, android.app.PendingIntent.FLAG_IMMUTABLE)
+
+        val formatSpeed = { bytesPerSec: Long ->
+            val kbps = bytesPerSec / 1024.0
+            if (kbps > 1024) String.format("%.1f MB/s", kbps / 1024) else String.format("%.1f KB/s", kotlin.math.max(0.0, kbps))
+        }
+
+        val readerState = if (isFolded) "Closed" else "Open"
+        val inboxStyle = androidx.core.app.NotificationCompat.InboxStyle()
+            .addLine("Mobile: $mobileMb MB | WiFi: $wifiMb MB (today)")
+            .addLine("↓ ${formatSpeed(downSpeed)}  ↑ ${formatSpeed(upSpeed)}")
+            .addLine("Reader: $readerState")
+
+        val notification = androidx.core.app.NotificationCompat.Builder(this, "reader_channel")
+            .setContentTitle("LiteReader")
+            .setContentText("Mobile: $mobileMb MB | WiFi: $wifiMb MB (today)")
+            .setStyle(inboxStyle)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setContentIntent(pendingIntent)
+            .addAction(android.R.drawable.ic_menu_preferences, "Settings", settingsPendingIntent)
+            .build()
+            
+        manager.notify(1, notification)
     }
     
     private fun showSidebar() {
@@ -2224,6 +2370,7 @@ class FloatingReaderService : Service() {
             if (layoutParams.y < 0) layoutParams.y = 0
         }
         windowManager.updateViewLayout(floatingView, layoutParams)
+        updatePersistentNotification()
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
@@ -2235,6 +2382,9 @@ class FloatingReaderService : Service() {
         if (this::prefs.isInitialized) {
             prefs.unregisterOnSharedPreferenceChangeListener(prefListener)
         }
+        screenStateReceiver?.let { unregisterReceiver(it) }
+        netSpeedManager?.stop()
+        speedOverlayView?.detach()
         instance = null
         sidebarView?.detach()
         sidebarView = null

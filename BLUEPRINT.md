@@ -407,7 +407,7 @@ Scope: Multiple swipeable pages. Depends on Phase F7 settings for default page c
 - Page order and configuration stored in SharedPreferences as ordered JSON array
 - Goal: multi-page sidebar works, swipe smooth, RAM cost proportional to pages visited
 
-### Phase F9 — Net Speed Indicator
+### Phase F9 — Net Speed Indicator (IMPLEMENTED)
 Scope: Live network speed overlay. Screen receiver already exists — extend it here.
 - `NetSpeedManager.kt` inside FloatingReaderService:
   - Polls TrafficStats every 1 second on Dispatchers.IO — never on main thread
