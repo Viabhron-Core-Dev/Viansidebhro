@@ -388,7 +388,7 @@ Screenshot save folder:
 All settings persisted to SharedPreferences.
 Goal: settings infrastructure in place before pages and gestures are built
 
-### Phase F8 — Sidebar Multiple Pages
+### Phase F8 — Sidebar Multiple Pages (IMPLEMENTED)
 Scope: Multiple swipeable pages. Depends on Phase F7 settings for default page config.
 - Page container inside SidebarView: ViewPager2 or manual swipe handling
 - Swipe left/right to switch between pages

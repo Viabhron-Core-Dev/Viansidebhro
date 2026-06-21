@@ -65,6 +65,7 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -> Unit, onBack: () -> Unit) {
+    val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("Settings") },
@@ -78,14 +79,25 @@ fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -
             item {
                 ListItem(
                     headlineContent = { Text("eBook Reader Settings") },
-                    supportingContent = { Text("Theme, font size, gestures") },
+                    supportingContent = { Text("Theme, font size, gestures, backups, logs") },
                     modifier = Modifier.clickable { onNavigateToReader() }
                 )
                 Divider()
                 ListItem(
                     headlineContent = { Text("General Settings") },
-                    supportingContent = { Text("Backup, restore, logging") },
+                    supportingContent = { Text("Sidebar, handle customization") },
                     modifier = Modifier.clickable { onNavigateToGeneral() }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Log Keeper") },
+                    supportingContent = { Text("View system logs") },
+                    modifier = Modifier.clickable { 
+                        val intent = Intent(context, com.example.LogKeeperActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        }
+                        context.startActivity(intent)
+                    }
                 )
                 Divider()
             }
@@ -98,6 +110,7 @@ fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -
 fun ReaderSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE) }
+    val coroutineScope = rememberCoroutineScope()
     
     var tapToTurn by remember { mutableStateOf(prefs.getBoolean("tap_to_turn", true)) }
     var keepScreenOn by remember { mutableStateOf(prefs.getBoolean("keep_screen_on", true)) }
@@ -214,28 +227,7 @@ fun ReaderSettingsScreen(onBack: () -> Unit) {
                         )
                     }
                 )
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun GeneralSettingsScreen(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    
-    Column(modifier = Modifier.fillMaxSize()) {
-        TopAppBar(
-            title = { Text("General Settings") },
-            navigationIcon = {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                }
-            }
-        )
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            item {
+                Divider()
                 ListItem(
                     headlineContent = { Text("Backup Data (No Books)") },
                     modifier = Modifier.clickable {
@@ -282,6 +274,145 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                             Toast.makeText(context, "Export failed", Toast.LENGTH_SHORT).show()
                             AppLogger.export(context)
                         }
+                    }
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun GeneralSettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE) }
+    
+    // Handle options
+    var handleColor by remember { mutableStateOf(prefs.getString("handle_color", "Default") ?: "Default") }
+    var handleShape by remember { mutableStateOf(prefs.getString("handle_shape", "Default") ?: "Default") }
+    
+    // Sidebar options
+    var sidebarColumns by remember { mutableStateOf(prefs.getInt("sidebar_columns", 4)) }
+    var sidebarRows by remember { mutableStateOf(prefs.getInt("sidebar_rows", 5)) }
+    var sidebarStickMode by remember { mutableStateOf(prefs.getString("sidebar_stick_mode", "Edge") ?: "Edge") }
+    var sidebarLengthMode by remember { mutableStateOf(prefs.getString("sidebar_length_mode", "Wrap") ?: "Wrap") }
+    var sidebarTransparency by remember { mutableStateOf(prefs.getFloat("sidebar_transparency", 0.9f)) }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text("General Settings") },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                }
+            }
+        )
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
+                Text(
+                    text = "Handle Customization",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(16.dp, 8.dp)
+                )
+                ListItem(
+                    headlineContent = { Text("Color") },
+                    supportingContent = { Text(handleColor) },
+                    modifier = Modifier.clickable { 
+                        // Placeholder
+                    }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Shape") },
+                    supportingContent = { Text(handleShape) },
+                    modifier = Modifier.clickable { 
+                        // Placeholder
+                    }
+                )
+                Divider()
+                
+                Text(
+                    text = "Sidebar Customization",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(16.dp, 8.dp)
+                )
+                ListItem(
+                    headlineContent = { Text("Columns") },
+                    supportingContent = {
+                        Slider(
+                            value = sidebarColumns.toFloat(),
+                            onValueChange = { 
+                                sidebarColumns = it.toInt()
+                                prefs.edit().putInt("sidebar_columns", it.toInt()).apply()
+                            },
+                            valueRange = 2f..6f,
+                            steps = 3
+                        )
+                    },
+                    trailingContent = { Text(sidebarColumns.toString()) }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Rows") },
+                    supportingContent = {
+                        Slider(
+                            value = sidebarRows.toFloat(),
+                            onValueChange = { 
+                                sidebarRows = it.toInt()
+                                prefs.edit().putInt("sidebar_rows", it.toInt()).apply()
+                            },
+                            valueRange = 2f..8f,
+                            steps = 5
+                        )
+                    },
+                    trailingContent = { Text(sidebarRows.toString()) }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Stick Mode") },
+                    supportingContent = { Text(sidebarStickMode) },
+                    modifier = Modifier.clickable { 
+                        // Placeholder
+                    }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Length Mode") },
+                    supportingContent = { Text(sidebarLengthMode) },
+                    modifier = Modifier.clickable { 
+                        // Placeholder
+                    }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Background Transparency") },
+                    supportingContent = {
+                        Slider(
+                            value = sidebarTransparency,
+                            onValueChange = { 
+                                sidebarTransparency = it
+                                prefs.edit().putFloat("sidebar_transparency", it).apply()
+                            },
+                            valueRange = 0f..1f,
+                            steps = 10
+                        )
+                    }
+                )
+                Divider()
+                
+                Text(
+                    text = "Pages",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(16.dp, 8.dp)
+                )
+                ListItem(
+                    headlineContent = { Text("Sidebar Pages (Placeholder)") },
+                    supportingContent = { Text("Configure multiple pages") },
+                    modifier = Modifier.clickable { 
+                        // Placeholder
                     }
                 )
             }
