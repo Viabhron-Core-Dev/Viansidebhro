@@ -319,25 +319,55 @@ class FloatingReaderService : Service() {
 
         val formatSpeed = { bytesPerSec: Long ->
             val kbps = bytesPerSec / 1024.0
-            if (kbps > 1024) String.format("%.1f MB/s", kbps / 1024) else String.format("%.1f KB/s", kotlin.math.max(0.0, kbps))
+            if (kbps > 1024) String.format("%.1f MB/s", kbps / 1024) else String.format("%.0f KB/s", kotlin.math.max(0.0, kbps))
         }
 
-        val readerState = if (isFolded) "Closed" else "Open"
-        val inboxStyle = androidx.core.app.NotificationCompat.InboxStyle()
-            .addLine("Mobile: $mobileMb MB | WiFi: $wifiMb MB (today)")
-            .addLine("↓ ${formatSpeed(downSpeed)}  ↑ ${formatSpeed(upSpeed)}")
-            .addLine("Reader: $readerState")
+        val totalGb = (mobileMb + wifiMb) / 1024.0
+        val dataText = if (totalGb >= 1.0) String.format("Data: %.2f GiB", totalGb) else "Data: ${mobileMb + wifiMb} MB"
 
-        val notification = androidx.core.app.NotificationCompat.Builder(this, "reader_channel")
-            .setContentTitle("LiteReader")
-            .setContentText("Mobile: $mobileMb MB | WiFi: $wifiMb MB (today)")
-            .setStyle(inboxStyle)
-            .setSmallIcon(android.R.drawable.ic_media_play)
+        val notificationBuilder = androidx.core.app.NotificationCompat.Builder(this, "reader_channel")
+            .setContentTitle("$dataText (Mobile: $mobileMb MB • WiFi: $wifiMb MB)")
+            .setContentText("Down: ${formatSpeed(downSpeed)}   Up: ${formatSpeed(upSpeed)}")
             .setContentIntent(pendingIntent)
+            .setOnlyAlertOnce(true)
             .addAction(android.R.drawable.ic_menu_preferences, "Settings", settingsPendingIntent)
-            .build()
+
+        if (netSpeedEnabled) {
+            val speedIcon = createSpeedIcon(kotlin.math.max(downSpeed, upSpeed))
+            notificationBuilder.setSmallIcon(speedIcon)
+        } else {
+            notificationBuilder.setSmallIcon(android.R.drawable.ic_media_play)
+        }
             
-        manager.notify(1, notification)
+        manager.notify(1, notificationBuilder.build())
+    }
+
+    private fun createSpeedIcon(speedBytes: Long): androidx.core.graphics.drawable.IconCompat {
+        val bitmap = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bitmap)
+        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.WHITE
+            textAlign = android.graphics.Paint.Align.CENTER
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        
+        val kbps = speedBytes / 1024.0
+        val valueStr: String
+        val unitStr: String
+        if (kbps > 1024) {
+            valueStr = String.format("%.1f", kbps / 1024)
+            unitStr = "MB/s"
+        } else {
+            valueStr = String.format("%.0f", kotlin.math.max(0.0, kbps))
+            unitStr = "KB/s"
+        }
+        
+        paint.textSize = 46f
+        canvas.drawText(valueStr, 48f, 48f, paint)
+        paint.textSize = 28f
+        canvas.drawText(unitStr, 48f, 84f, paint)
+        
+        return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
     }
     
     private fun showSidebar() {

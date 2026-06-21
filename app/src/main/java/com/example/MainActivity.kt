@@ -112,6 +112,14 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 101)
+                Toast.makeText(this, "Please grant notification permission", Toast.LENGTH_SHORT).show()
+                return
+            }
+        }
+
         if (intent.action == Intent.ACTION_VIEW && intent.data != null) {
             val uri = intent.data!!
             val repository = LibraryRepository(this)
@@ -145,6 +153,19 @@ class MainActivity : ComponentActivity() {
         }
         androidx.core.content.ContextCompat.startForegroundService(this, serviceIntent)
         finishAndRemoveTask()
+    }
+
+    @Deprecated("Deprecated in Java", ReplaceWith("super.onRequestPermissionsResult(requestCode, permissions, grantResults)"))
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 101) {
+            if (grantResults.isNotEmpty() && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                handleIntent(intent)
+            } else {
+                Toast.makeText(this, "Notification permission is required", Toast.LENGTH_SHORT).show()
+                finishAndRemoveTask()
+            }
+        }
     }
 }
 
