@@ -131,6 +131,10 @@ class AppsPageView(
                         val intent = android.content.Intent(context, FloatingReaderService::class.java)
                         intent.putExtra("UNFOLD", true)
                         context.startService(intent)
+                    } else if (item.action == "settings") {
+                        val intent = android.content.Intent(context, com.example.SettingsActivity::class.java)
+                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
                     } else {
                         val service = VianSideAccessibilityService.instance
                         if (service != null && service.performAction(item.action)) {
