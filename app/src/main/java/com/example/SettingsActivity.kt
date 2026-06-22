@@ -43,6 +43,14 @@ class SettingsActivity : ComponentActivity() {
 fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
     var currentRoute by remember { mutableStateOf(startRoute) }
     
+    androidx.activity.compose.BackHandler {
+        if (currentRoute == "main" || currentRoute == startRoute) {
+            onFinish()
+        } else {
+            currentRoute = "main"
+        }
+    }
+    
     Scaffold { padding ->
         Box(modifier = Modifier.padding(padding)) {
             when (currentRoute) {

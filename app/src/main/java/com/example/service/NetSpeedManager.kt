@@ -35,30 +35,70 @@ class NetSpeedManager(
         lastMobileTx = TrafficStats.getMobileTxBytes()
         lastTime = System.currentTimeMillis()
         
-        val baselineMobileRx = prefs.getLong("daily_mobile_rx_baseline", 0L)
-        val baselineMobileTx = prefs.getLong("daily_mobile_tx_baseline", 0L)
-        val baselineWifiRx = prefs.getLong("daily_wifi_rx_baseline", 0L)
-        val baselineWifiTx = prefs.getLong("daily_wifi_tx_baseline", 0L)
-        
-        if (baselineMobileRx == 0L && baselineWifiRx == 0L) {
-            val initialMobileRx = TrafficStats.getMobileRxBytes()
-            val initialMobileTx = TrafficStats.getMobileTxBytes()
-            val initialWifiRx = TrafficStats.getTotalRxBytes() - initialMobileRx
-            val initialWifiTx = TrafficStats.getTotalTxBytes() - initialMobileTx
-            
-            prefs.edit()
-                .putLong("daily_mobile_rx_baseline", initialMobileRx)
-                .putLong("daily_mobile_tx_baseline", initialMobileTx)
-                .putLong("daily_wifi_rx_baseline", initialWifiRx)
-                .putLong("daily_wifi_tx_baseline", initialWifiTx)
-                .apply()
-        }
-        
         job = coroutineScope.launch {
+            syncSystemDataUsage()
             while (isActive && isRunning) {
                 delay(1000)
                 updateSpeed()
             }
+        }
+    }
+
+    private fun syncSystemDataUsage() {
+        val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
+        val mode = appOps.checkOpNoThrow(
+            android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
+            android.os.Process.myUid(),
+            context.packageName
+        )
+        val hasPermission = if (mode == android.app.AppOpsManager.MODE_DEFAULT) {
+            context.checkCallingOrSelfPermission(android.Manifest.permission.PACKAGE_USAGE_STATS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        } else {
+            mode == android.app.AppOpsManager.MODE_ALLOWED
+        }
+
+        if (!hasPermission) return
+        
+        try {
+            val manager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as android.app.usage.NetworkStatsManager
+            val cal = java.util.Calendar.getInstance()
+            val end = cal.timeInMillis
+            cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+            cal.clear(java.util.Calendar.MINUTE)
+            cal.clear(java.util.Calendar.SECOND)
+            cal.clear(java.util.Calendar.MILLISECOND)
+            val start = cal.timeInMillis
+            
+            var mobileBytes = 0L
+            var wifiBytes = 0L
+            
+            val bucket = android.app.usage.NetworkStats.Bucket()
+            try {
+                val wifiStats = manager.querySummary(android.net.NetworkCapabilities.TRANSPORT_WIFI, null, start, end)
+                while (wifiStats.hasNextBucket()) {
+                    wifiStats.getNextBucket(bucket)
+                    wifiBytes += bucket.rxBytes + bucket.txBytes
+                }
+                wifiStats.close()
+            } catch (e: Exception) {}
+            
+            try {
+                val mobileStats = manager.querySummary(android.net.NetworkCapabilities.TRANSPORT_CELLULAR, null, start, end)
+                while (mobileStats.hasNextBucket()) {
+                    mobileStats.getNextBucket(bucket)
+                    mobileBytes += bucket.rxBytes + bucket.txBytes
+                }
+                mobileStats.close()
+            } catch (e: Exception) {}
+            
+            prefs.edit()
+                .putLong("daily_mobile_rx", mobileBytes)
+                .putLong("daily_mobile_tx", 0L)
+                .putLong("daily_wifi_rx", wifiBytes)
+                .putLong("daily_wifi_tx", 0L)
+                .apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 

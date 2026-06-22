@@ -346,15 +346,8 @@ class FloatingReaderService : Service() {
         val bitmap = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
         
-        val circlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.WHITE
-            style = android.graphics.Paint.Style.FILL
-        }
-        canvas.drawCircle(48f, 48f, 48f, circlePaint)
-
         val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-            color = android.graphics.Color.TRANSPARENT
-            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
+            color = android.graphics.Color.WHITE
             textAlign = android.graphics.Paint.Align.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
@@ -385,10 +378,10 @@ class FloatingReaderService : Service() {
             }
         }
         
-        textPaint.textSize = 40f
-        canvas.drawText(valueStr, 48f, 46f, textPaint)
-        textPaint.textSize = 24f
-        canvas.drawText(unitStr, 48f, 76f, textPaint)
+        textPaint.textSize = 52f
+        canvas.drawText(valueStr, 48f, 50f, textPaint)
+        textPaint.textSize = 34f
+        canvas.drawText(unitStr, 48f, 88f, textPaint)
         
         return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
     }
