@@ -44,7 +44,7 @@ class NetSpeedManager(
         }
     }
 
-    private fun syncSystemDataUsage() {
+    private suspend fun syncSystemDataUsage() {
         val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as android.app.AppOpsManager
         val mode = appOps.checkOpNoThrow(
             android.app.AppOpsManager.OPSTR_GET_USAGE_STATS,
@@ -72,24 +72,29 @@ class NetSpeedManager(
             var mobileBytes = 0L
             var wifiBytes = 0L
             
-            val bucket = android.app.usage.NetworkStats.Bucket()
             try {
-                val wifiStats = manager.querySummary(android.net.NetworkCapabilities.TRANSPORT_WIFI, null, start, end)
-                while (wifiStats.hasNextBucket()) {
-                    wifiStats.getNextBucket(bucket)
-                    wifiBytes += bucket.rxBytes + bucket.txBytes
-                }
-                wifiStats.close()
-            } catch (e: Exception) {}
+                val bucket = manager.querySummaryForDevice(android.net.NetworkCapabilities.TRANSPORT_WIFI, null, start, end)
+                wifiBytes = bucket.rxBytes + bucket.txBytes
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             
             try {
-                val mobileStats = manager.querySummary(android.net.NetworkCapabilities.TRANSPORT_CELLULAR, null, start, end)
-                while (mobileStats.hasNextBucket()) {
-                    mobileStats.getNextBucket(bucket)
-                    mobileBytes += bucket.rxBytes + bucket.txBytes
+                // Try querySummaryForDevice with null subscriber
+                val bucket = manager.querySummaryForDevice(android.net.NetworkCapabilities.TRANSPORT_CELLULAR, null, start, end)
+                mobileBytes = bucket.rxBytes + bucket.txBytes
+            } catch (e: Exception) {
+                e.printStackTrace()
+                // Fallback if requires subscriberId
+                try {
+                    val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
+                    val subscriberId = telephonyManager.subscriberId
+                    val bucket = manager.querySummaryForDevice(android.net.NetworkCapabilities.TRANSPORT_CELLULAR, subscriberId, start, end)
+                    mobileBytes = bucket.rxBytes + bucket.txBytes
+                } catch (e2: Exception) {
+                    e2.printStackTrace()
                 }
-                mobileStats.close()
-            } catch (e: Exception) {}
+            }
             
             prefs.edit()
                 .putLong("daily_mobile_rx", mobileBytes)
@@ -97,6 +102,10 @@ class NetSpeedManager(
                 .putLong("daily_wifi_rx", wifiBytes)
                 .putLong("daily_wifi_tx", 0L)
                 .apply()
+                
+            withContext(Dispatchers.Main) {
+                onDailyDataUpdate(mobileBytes / (1024 * 1024), wifiBytes / (1024 * 1024))
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }

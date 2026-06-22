@@ -343,13 +343,13 @@ class FloatingReaderService : Service() {
     }
 
     private fun createSpeedIcon(speedBytes: Long): androidx.core.graphics.drawable.IconCompat {
-        val bitmap = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888)
+        val bitmap = android.graphics.Bitmap.createBitmap(144, 144, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
         
-        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.SUBPIXEL_TEXT_FLAG).apply {
             color = android.graphics.Color.WHITE
             textAlign = android.graphics.Paint.Align.CENTER
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
         }
         
         val kbps = speedBytes / 1024.0
@@ -378,10 +378,10 @@ class FloatingReaderService : Service() {
             }
         }
         
-        textPaint.textSize = 52f
-        canvas.drawText(valueStr, 48f, 50f, textPaint)
-        textPaint.textSize = 34f
-        canvas.drawText(unitStr, 48f, 88f, textPaint)
+        textPaint.textSize = 72f
+        canvas.drawText(valueStr, 72f, 75f, textPaint)
+        textPaint.textSize = 48f
+        canvas.drawText(unitStr, 72f, 130f, textPaint)
         
         return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
     }

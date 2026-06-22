@@ -36,31 +36,20 @@ class AppsPageView(
         val header = FrameLayout(context).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, headerHeight)
             
-            val title = TextView(context).apply {
-                text = "Apps"
-                setTextColor(android.graphics.Color.WHITE)
-                textSize = 18f
-                gravity = Gravity.CENTER_VERTICAL
-                layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT).apply {
-                    marginStart = padding16
-                }
-            }
-            
             val addButton = TextView(context).apply {
                 text = "+ Add"
                 setTextColor(android.graphics.Color.parseColor("#4CAF50"))
-                textSize = 16f
+                textSize = 14f
                 gravity = Gravity.CENTER
-                setPadding(padding16, 0, padding16, 0)
-                layoutParams = LayoutParams(LayoutParams.WRAP_CONTENT, LayoutParams.MATCH_PARENT).apply {
-                    gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                setPadding(0, 0, 0, 0)
+                layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply {
+                    gravity = Gravity.CENTER
                 }
                 setOnClickListener {
                     onShowAppPicker()
                 }
             }
             
-            addView(title)
             addView(addButton)
         }
 
@@ -68,7 +57,7 @@ class AppsPageView(
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply {
                 topMargin = headerHeight
             }
-            layoutManager = GridLayoutManager(context, 3) 
+            layoutManager = GridLayoutManager(context, 2) 
             setHasFixedSize(true)
             setItemViewCacheSize(20)
         }

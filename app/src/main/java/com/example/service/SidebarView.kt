@@ -45,7 +45,7 @@ class SidebarView(
         }
 
         val density = context.resources.displayMetrics.density
-        val widthPx = (260 * density).toInt()
+        val widthPx = (110 * density).toInt()
         val heightPx = (context.resources.displayMetrics.heightPixels * 0.8).toInt()
 
         val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
@@ -80,16 +80,16 @@ class SidebarView(
             // Adjust corners based on left or right edge
             cornerRadii = if (isRight) {
                 floatArrayOf(
-                    32f, 32f, // top left
+                    20f, 20f, // top left
                     0f, 0f,   // top right
                     0f, 0f,   // bottom right
-                    32f, 32f  // bottom left
+                    20f, 20f  // bottom left
                 )
             } else {
                 floatArrayOf(
                     0f, 0f,   // top left
-                    32f, 32f, // top right
-                    32f, 32f, // bottom right
+                    20f, 20f, // top right
+                    20f, 20f, // bottom right
                     0f, 0f    // bottom left
                 )
             }

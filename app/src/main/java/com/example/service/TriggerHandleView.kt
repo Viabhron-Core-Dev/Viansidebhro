@@ -31,8 +31,13 @@ class TriggerHandleView(
     init {
         val drawable = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = 50f
-            setColor(Color.parseColor("#80607D8B")) 
+            cornerRadii = floatArrayOf(
+                20f, 20f, // top left
+                0f, 0f,   // top right
+                0f, 0f,   // bottom right
+                20f, 20f  // bottom left
+            )
+            setColor(Color.parseColor("#4DEEEEEE")) 
         }
         background = drawable
 
@@ -44,8 +49,8 @@ class TriggerHandleView(
         }
 
         val density = context.resources.displayMetrics.density
-        val widthPx = (8 * density).toInt()
-        val heightPx = (60 * density).toInt()
+        val widthPx = (5 * density).toInt()
+        val heightPx = (100 * density).toInt()
 
         layoutParams = WindowManager.LayoutParams(
             widthPx,
