@@ -85,16 +85,11 @@ class FloatingReaderService : Service() {
             "speed_indicator_enabled" -> {
                 netSpeedEnabled = sharedPreferences.getBoolean("speed_indicator_enabled", false)
                 if (netSpeedEnabled) {
-                    if (speedOverlayView == null) {
-                        speedOverlayView = SpeedOverlayView(this@FloatingReaderService, prefs, windowManager)
-                    }
-                    speedOverlayView?.attach()
                     if (netSpeedManager == null) {
                         netSpeedManager = NetSpeedManager(this@FloatingReaderService, prefs, 
                             onSpeedUpdate = { down, up ->
                                 downSpeed = down
                                 upSpeed = up
-                                speedOverlayView?.updateSpeed(down, up)
                                 updatePersistentNotification()
                             },
                             onDailyDataUpdate = { mobile, wifi ->
@@ -106,12 +101,9 @@ class FloatingReaderService : Service() {
                     }
                     netSpeedManager?.start()
                 } else {
-                    speedOverlayView?.detach()
                     netSpeedManager?.stop()
                 }
-            }
-            "speed_indicator_position", "speed_indicator_font_size", "speed_indicator_color" -> {
-                speedOverlayView?.updateAppearance()
+                updatePersistentNotification()
             }
         }
     }
@@ -136,7 +128,6 @@ class FloatingReaderService : Service() {
     private var addElementOverlayView: AddElementOverlayView? = null
     
     private var netSpeedManager: NetSpeedManager? = null
-    private var speedOverlayView: SpeedOverlayView? = null
     private var screenStateReceiver: android.content.BroadcastReceiver? = null
     private var netSpeedEnabled = false
     private var mobileMb: Long = 0
@@ -248,14 +239,10 @@ class FloatingReaderService : Service() {
 
         netSpeedEnabled = prefs.getBoolean("speed_indicator_enabled", false)
         if (netSpeedEnabled) {
-            speedOverlayView = SpeedOverlayView(this, prefs, windowManager)
-            speedOverlayView?.attach()
-            
             netSpeedManager = NetSpeedManager(this, prefs, 
                 onSpeedUpdate = { down, up ->
                     downSpeed = down
                     upSpeed = up
-                    speedOverlayView?.updateSpeed(down, up)
                     updatePersistentNotification()
                 },
                 onDailyDataUpdate = { mobile, wifi ->
@@ -314,23 +301,36 @@ class FloatingReaderService : Service() {
         val notificationIntent = Intent(this, com.example.MainActivity::class.java)
         val pendingIntent = android.app.PendingIntent.getActivity(this, 0, notificationIntent, android.app.PendingIntent.FLAG_IMMUTABLE)
 
-        val settingsIntent = Intent(this, com.example.SettingsActivity::class.java)
-        val settingsPendingIntent = android.app.PendingIntent.getActivity(this, 1, settingsIntent, android.app.PendingIntent.FLAG_IMMUTABLE)
+        val settingsIntent = Intent(this, com.example.SettingsActivity::class.java).apply {
+            putExtra("start_route", "netspeed")
+        }
+        val settingsPendingIntent = android.app.PendingIntent.getActivity(this, 1, settingsIntent, android.app.PendingIntent.FLAG_IMMUTABLE or android.app.PendingIntent.FLAG_UPDATE_CURRENT)
 
+        val speedUnits = prefs.getString("speed_units", "Auto") ?: "Auto"
         val formatSpeed = { bytesPerSec: Long ->
             val kbps = bytesPerSec / 1024.0
-            if (kbps > 1024) String.format("%.1f MB/s", kbps / 1024) else String.format("%.0f KB/s", kotlin.math.max(0.0, kbps))
+            val mbps = kbps / 1024.0
+            when (speedUnits) {
+                "KB/s" -> String.format("%.0f KB/s", kotlin.math.max(0.0, kbps))
+                "MB/s" -> String.format("%.2f MB/s", kotlin.math.max(0.0, mbps))
+                else -> if (kbps >= 1024) String.format("%.1f MB/s", mbps) else String.format("%.0f KB/s", kotlin.math.max(0.0, kbps))
+            }
         }
 
-        val totalGb = (mobileMb + wifiMb) / 1024.0
-        val dataText = if (totalGb >= 1.0) String.format("Data: %.2f GiB", totalGb) else "Data: ${mobileMb + wifiMb} MB"
+        val dataUnits = prefs.getString("data_units", "Auto") ?: "Auto"
+        val totalMb = mobileMb + wifiMb
+        val dataText = when(dataUnits) {
+            "MB" -> "Data: $totalMb MB"
+            "GB" -> String.format("Data: %.2f GB", totalMb / 1000.0)
+            "GiB" -> String.format("Data: %.2f GiB", totalMb / 1024.0)
+            else -> if (totalMb >= 1024) String.format("Data: %.2f GiB", totalMb / 1024.0) else "Data: $totalMb MB"
+        }
 
         val notificationBuilder = androidx.core.app.NotificationCompat.Builder(this, "reader_channel")
-            .setContentTitle("$dataText (Mobile: $mobileMb MB • WiFi: $wifiMb MB)")
+            .setContentTitle(dataText)
             .setContentText("Down: ${formatSpeed(downSpeed)}   Up: ${formatSpeed(upSpeed)}")
-            .setContentIntent(pendingIntent)
+            .setContentIntent(settingsPendingIntent)
             .setOnlyAlertOnce(true)
-            .addAction(android.R.drawable.ic_menu_preferences, "Settings", settingsPendingIntent)
 
         if (netSpeedEnabled) {
             val speedIcon = createSpeedIcon(kotlin.math.max(downSpeed, upSpeed))
@@ -345,27 +345,50 @@ class FloatingReaderService : Service() {
     private fun createSpeedIcon(speedBytes: Long): androidx.core.graphics.drawable.IconCompat {
         val bitmap = android.graphics.Bitmap.createBitmap(96, 96, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
-        val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        
+        val circlePaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE
+            style = android.graphics.Paint.Style.FILL
+        }
+        canvas.drawCircle(48f, 48f, 48f, circlePaint)
+
+        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+            color = android.graphics.Color.TRANSPARENT
+            xfermode = android.graphics.PorterDuffXfermode(android.graphics.PorterDuff.Mode.CLEAR)
             textAlign = android.graphics.Paint.Align.CENTER
             typeface = android.graphics.Typeface.DEFAULT_BOLD
         }
         
         val kbps = speedBytes / 1024.0
+        val mbps = kbps / 1024.0
         val valueStr: String
         val unitStr: String
-        if (kbps > 1024) {
-            valueStr = String.format("%.1f", kbps / 1024)
-            unitStr = "MB/s"
-        } else {
-            valueStr = String.format("%.0f", kotlin.math.max(0.0, kbps))
-            unitStr = "KB/s"
+        
+        val speedUnits = prefs.getString("speed_units", "Auto") ?: "Auto"
+        when (speedUnits) {
+            "KB/s" -> {
+                valueStr = String.format("%.0f", kotlin.math.max(0.0, kbps))
+                unitStr = "KB/s"
+            }
+            "MB/s" -> {
+                valueStr = String.format("%.2f", kotlin.math.max(0.0, mbps))
+                unitStr = "MB/s"
+            }
+            else -> {
+                if (kbps >= 1024) {
+                    valueStr = String.format("%.1f", mbps)
+                    unitStr = "MB/s"
+                } else {
+                    valueStr = String.format("%.0f", kotlin.math.max(0.0, kbps))
+                    unitStr = "KB/s"
+                }
+            }
         }
         
-        paint.textSize = 46f
-        canvas.drawText(valueStr, 48f, 48f, paint)
-        paint.textSize = 28f
-        canvas.drawText(unitStr, 48f, 84f, paint)
+        textPaint.textSize = 40f
+        canvas.drawText(valueStr, 48f, 46f, textPaint)
+        textPaint.textSize = 24f
+        canvas.drawText(unitStr, 48f, 76f, textPaint)
         
         return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
     }
@@ -2414,7 +2437,6 @@ class FloatingReaderService : Service() {
         }
         screenStateReceiver?.let { unregisterReceiver(it) }
         netSpeedManager?.stop()
-        speedOverlayView?.detach()
         instance = null
         sidebarView?.detach()
         sidebarView = null

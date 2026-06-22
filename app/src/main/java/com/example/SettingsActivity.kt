@@ -49,12 +49,16 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
                 "main" -> MainSettingsScreen(
                     onNavigateToReader = { currentRoute = "reader" },
                     onNavigateToGeneral = { currentRoute = "general" },
+                    onNavigateToNetSpeed = { currentRoute = "netspeed" },
                     onBack = onFinish
                 )
                 "reader" -> ReaderSettingsScreen(
                     onBack = { if (startRoute == "reader") onFinish() else currentRoute = "main" }
                 )
                 "general" -> GeneralSettingsScreen(
+                    onBack = { currentRoute = "main" }
+                )
+                "netspeed" -> NetSpeedSettingsScreen(
                     onBack = { currentRoute = "main" }
                 )
             }
@@ -64,7 +68,7 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -> Unit, onBack: () -> Unit) {
+fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -> Unit, onNavigateToNetSpeed: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -87,6 +91,12 @@ fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -
                     headlineContent = { Text("General Settings") },
                     supportingContent = { Text("Sidebar, handle customization") },
                     modifier = Modifier.clickable { onNavigateToGeneral() }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("NetSpeed Indicator Settings") },
+                    supportingContent = { Text("Toggle, units, and data usage statistics") },
+                    modifier = Modifier.clickable { onNavigateToNetSpeed() }
                 )
                 Divider()
                 ListItem(
@@ -298,11 +308,6 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
     var sidebarLengthMode by remember { mutableStateOf(prefs.getString("sidebar_length_mode", "Wrap") ?: "Wrap") }
     var sidebarTransparency by remember { mutableStateOf(prefs.getFloat("sidebar_transparency", 0.9f)) }
 
-    var speedIndicatorEnabled by remember { mutableStateOf(prefs.getBoolean("speed_indicator_enabled", false)) }
-    var speedIndicatorPosition by remember { mutableStateOf(prefs.getString("speed_indicator_position", "Left") ?: "Left") }
-    var speedIndicatorFontSize by remember { mutableStateOf(prefs.getInt("speed_indicator_font_size", 12)) }
-    var speedIndicatorColor by remember { mutableStateOf(prefs.getString("speed_indicator_color", "White") ?: "White") }
-
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("General Settings") },
@@ -314,73 +319,6 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
         )
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             item {
-                Text(
-                    text = "Net Speed Indicator",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(16.dp, 8.dp)
-                )
-                ListItem(
-                    headlineContent = { Text("Enable Net Speed Overlay") },
-                    trailingContent = {
-                        Switch(
-                            checked = speedIndicatorEnabled,
-                            onCheckedChange = {
-                                speedIndicatorEnabled = it
-                                prefs.edit().putBoolean("speed_indicator_enabled", it).apply()
-                            }
-                        )
-                    }
-                )
-                Divider()
-                ListItem(
-                    headlineContent = { Text("Position") },
-                    supportingContent = { Text(speedIndicatorPosition) },
-                    modifier = Modifier.clickable {
-                        // Cycle Left, Center, Right
-                        speedIndicatorPosition = when (speedIndicatorPosition) {
-                            "Left" -> "Center"
-                            "Center" -> "Right"
-                            else -> "Left"
-                        }
-                        prefs.edit().putString("speed_indicator_position", speedIndicatorPosition).apply()
-                    }
-                )
-                Divider()
-                ListItem(
-                    headlineContent = { Text("Font Size") },
-                    trailingContent = { Text(speedIndicatorFontSize.toString()) },
-                    supportingContent = {
-                        Slider(
-                            value = speedIndicatorFontSize.toFloat(),
-                            onValueChange = {
-                                speedIndicatorFontSize = it.toInt()
-                                prefs.edit().putInt("speed_indicator_font_size", speedIndicatorFontSize).apply()
-                            },
-                            valueRange = 8f..24f,
-                            steps = 15
-                        )
-                    }
-                )
-                Divider()
-                ListItem(
-                    headlineContent = { Text("Color") },
-                    supportingContent = { Text(speedIndicatorColor) },
-                    modifier = Modifier.clickable {
-                        // Cycle White, Black, Red, Green, Blue, Yellow
-                        speedIndicatorColor = when (speedIndicatorColor) {
-                            "White" -> "Black"
-                            "Black" -> "Red"
-                            "Red" -> "Green"
-                            "Green" -> "Blue"
-                            "Blue" -> "Yellow"
-                            else -> "White"
-                        }
-                        prefs.edit().putString("speed_indicator_color", speedIndicatorColor).apply()
-                    }
-                )
-                Divider()
-
                 Text(
                     text = "Handle Customization",
                     style = MaterialTheme.typography.titleMedium,
