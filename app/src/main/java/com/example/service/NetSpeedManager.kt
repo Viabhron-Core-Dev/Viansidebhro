@@ -73,27 +73,27 @@ class NetSpeedManager(
             var wifiBytes = 0L
             
             try {
-                val bucket = manager.querySummaryForDevice(android.net.NetworkCapabilities.TRANSPORT_WIFI, null, start, end)
-                wifiBytes = bucket.rxBytes + bucket.txBytes
+                val wifiStats = manager.querySummary(android.net.NetworkCapabilities.TRANSPORT_WIFI, null, start, end)
+                val bucket = android.app.usage.NetworkStats.Bucket()
+                while (wifiStats.hasNextBucket()) {
+                    wifiStats.getNextBucket(bucket)
+                    wifiBytes += bucket.rxBytes + bucket.txBytes
+                }
+                wifiStats.close()
             } catch (e: Exception) {
                 e.printStackTrace()
             }
             
             try {
-                // Try querySummaryForDevice with null subscriber
-                val bucket = manager.querySummaryForDevice(android.net.NetworkCapabilities.TRANSPORT_CELLULAR, null, start, end)
-                mobileBytes = bucket.rxBytes + bucket.txBytes
+                val mobileStats = manager.querySummary(android.net.NetworkCapabilities.TRANSPORT_CELLULAR, null, start, end)
+                val bucket = android.app.usage.NetworkStats.Bucket()
+                while (mobileStats.hasNextBucket()) {
+                    mobileStats.getNextBucket(bucket)
+                    mobileBytes += bucket.rxBytes + bucket.txBytes
+                }
+                mobileStats.close()
             } catch (e: Exception) {
                 e.printStackTrace()
-                // Fallback if requires subscriberId
-                try {
-                    val telephonyManager = context.getSystemService(Context.TELEPHONY_SERVICE) as android.telephony.TelephonyManager
-                    val subscriberId = telephonyManager.subscriberId
-                    val bucket = manager.querySummaryForDevice(android.net.NetworkCapabilities.TRANSPORT_CELLULAR, subscriberId, start, end)
-                    mobileBytes = bucket.rxBytes + bucket.txBytes
-                } catch (e2: Exception) {
-                    e2.printStackTrace()
-                }
             }
             
             prefs.edit()

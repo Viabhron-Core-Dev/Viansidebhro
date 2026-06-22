@@ -343,13 +343,13 @@ class FloatingReaderService : Service() {
     }
 
     private fun createSpeedIcon(speedBytes: Long): androidx.core.graphics.drawable.IconCompat {
-        val bitmap = android.graphics.Bitmap.createBitmap(144, 144, android.graphics.Bitmap.Config.ARGB_8888)
+        val size = 128
+        val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
         
-        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.SUBPIXEL_TEXT_FLAG).apply {
+        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.WHITE
             textAlign = android.graphics.Paint.Align.CENTER
-            typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
         }
         
         val kbps = speedBytes / 1024.0
@@ -378,10 +378,25 @@ class FloatingReaderService : Service() {
             }
         }
         
-        textPaint.textSize = 72f
-        canvas.drawText(valueStr, 72f, 75f, textPaint)
-        textPaint.textSize = 48f
-        canvas.drawText(unitStr, 72f, 130f, textPaint)
+        // Scale number text
+        textPaint.typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
+        var valueTextSize = 85f
+        textPaint.textSize = valueTextSize
+        while (textPaint.measureText(valueStr) > size - 4 && valueTextSize > 20f) {
+            valueTextSize -= 2f
+            textPaint.textSize = valueTextSize
+        }
+        canvas.drawText(valueStr, size / 2f, size * 0.55f, textPaint)
+        
+        // Scale unit text
+        textPaint.typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL)
+        var unitTextSize = 45f
+        textPaint.textSize = unitTextSize
+        while (textPaint.measureText(unitStr) > size - 4 && unitTextSize > 10f) {
+            unitTextSize -= 2f
+            textPaint.textSize = unitTextSize
+        }
+        canvas.drawText(unitStr, size / 2f, size * 0.90f, textPaint)
         
         return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
     }

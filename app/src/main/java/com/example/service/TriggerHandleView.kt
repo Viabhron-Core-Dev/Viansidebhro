@@ -3,9 +3,11 @@ package com.example.service
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PixelFormat
-import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.util.Log
 import android.view.Gravity
@@ -28,19 +30,14 @@ class TriggerHandleView(
     private var isDragging = false
     private val clickSlop = 10f
 
-    init {
-        val drawable = GradientDrawable().apply {
-            shape = GradientDrawable.RECTANGLE
-            cornerRadii = floatArrayOf(
-                20f, 20f, // top left
-                0f, 0f,   // top right
-                0f, 0f,   // bottom right
-                20f, 20f  // bottom left
-            )
-            setColor(Color.parseColor("#4DEEEEEE")) 
-        }
-        background = drawable
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.parseColor("#804A90E2") // Semi-transparent blue
+        style = Paint.Style.FILL
+    }
 
+    private val path = Path()
+
+    init {
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
@@ -49,8 +46,8 @@ class TriggerHandleView(
         }
 
         val density = context.resources.displayMetrics.density
-        val widthPx = (5 * density).toInt()
-        val heightPx = (100 * density).toInt()
+        val widthPx = (12 * density).toInt()
+        val heightPx = (120 * density).toInt()
 
         layoutParams = WindowManager.LayoutParams(
             widthPx,
@@ -101,10 +98,44 @@ class TriggerHandleView(
         }
     }
 
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        
+        val w = width.toFloat()
+        val h = height.toFloat()
+        val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
+
+        // For a 120 degree angle between the vertical edge and the top/bottom edges,
+        // the top edge must be at a 30-degree or 60-degree slope.
+        // Let's use tan(30) approx 0.577. 
+        val angleHeight = w * 0.577f
+
+        path.reset()
+        if (isRight) {
+            // Anchor to the right edge
+            path.moveTo(w, 0f)
+            path.lineTo(0f, angleHeight)
+            path.lineTo(0f, h - angleHeight)
+            path.lineTo(w, h)
+            path.close()
+        } else {
+            // Anchor to the left edge
+            path.moveTo(0f, 0f)
+            path.lineTo(w, angleHeight)
+            path.lineTo(w, h - angleHeight)
+            path.lineTo(0f, h)
+            path.close()
+        }
+
+        canvas.drawPath(path, paint)
+    }
+
     fun attach() {
         try {
             if (prefs.getBoolean("trigger_visible", true)) {
                 if (windowToken == null) {
+                    val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
+                    layoutParams.gravity = (if (isRight) Gravity.END else Gravity.START) or Gravity.TOP
                     windowManager.addView(this, layoutParams)
                 }
             }

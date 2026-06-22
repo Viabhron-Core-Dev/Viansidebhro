@@ -60,6 +60,32 @@ sealed class SidebarItem {
     ) : SidebarItem() {
         override val id = "display:$action"
     }
+
+    data class Folder(
+        val uuid: String,
+        val name: String,
+        val colorHex: String,
+        val items: List<String>
+    ) : SidebarItem() {
+        override val id = "folder:$uuid"
+        override val label = name
+    }
+
+    data class Link(
+        val uuid: String,
+        val url: String,
+        override val label: String
+    ) : SidebarItem() {
+        override val id = "link:$uuid"
+    }
+
+    data class Spacer(
+        val uuid: String,
+        val heightDp: Int
+    ) : SidebarItem() {
+        override val id = "spacer:$uuid"
+        override val label = "Spacer"
+    }
 }
 
 val ALL_SYSTEM_ACTIONS = listOf(
@@ -250,6 +276,37 @@ class SidebarAppsManager(
                 if (displayAction != null) {
                     result.add(SidebarItem.DisplayAction(actionId, displayAction.label, displayAction.iconResId))
                 }
+            } else if (id.startsWith("folder:")) {
+                try {
+                    val parts = id.split(":", limit = 3)
+                    val uuid = parts[1]
+                    val folderDataStr = parts[2]
+                    val obj = org.json.JSONObject(folderDataStr)
+                    val itemsArr = obj.optJSONArray("items")
+                    val itemsList = mutableListOf<String>()
+                    if (itemsArr != null) {
+                        for (i in 0 until itemsArr.length()) {
+                            itemsList.add(itemsArr.getString(i))
+                        }
+                    }
+                    result.add(SidebarItem.Folder(uuid, obj.getString("name"), obj.getString("colorHex"), itemsList))
+                } catch (e: Exception) { e.printStackTrace() }
+            } else if (id.startsWith("link:")) {
+                try {
+                    val parts = id.split(":", limit = 3)
+                    val uuid = parts[1]
+                    val linkDataStr = parts[2]
+                    val obj = org.json.JSONObject(linkDataStr)
+                    result.add(SidebarItem.Link(uuid, obj.getString("url"), obj.getString("label")))
+                } catch (e: Exception) { e.printStackTrace() }
+            } else if (id.startsWith("spacer:")) {
+                try {
+                    val parts = id.split(":", limit = 3)
+                    val uuid = parts[1]
+                    val spacerDataStr = parts[2]
+                    val obj = org.json.JSONObject(spacerDataStr)
+                    result.add(SidebarItem.Spacer(uuid, obj.getInt("heightDp")))
+                } catch (e: Exception) { e.printStackTrace() }
             }
         }
         activeItems = result

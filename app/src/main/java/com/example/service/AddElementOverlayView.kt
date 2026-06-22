@@ -186,6 +186,82 @@ class AddElementOverlayView(
                 manager.addItem(item.id)
                 close()
             }
+            ActionType.FOLDER -> {
+                val et = android.widget.EditText(context).apply { hint = "Folder name" }
+                val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+                    .setTitle("New Folder")
+                    .setView(et)
+                    .setPositiveButton("Create") { _, _ ->
+                        val name = et.text.toString().ifEmpty { "New Folder" }
+                        val uuid = java.util.UUID.randomUUID().toString()
+                        val color = "#FF5722" // default color
+                        val json = org.json.JSONObject().apply {
+                            put("name", name)
+                            put("colorHex", color)
+                            put("items", org.json.JSONArray())
+                        }
+                        manager.addItem("folder:$uuid:$json")
+                        close()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .create()
+                dialog.window?.setType(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE)
+                dialog.show()
+            }
+            ActionType.LINK -> {
+                val layout = android.widget.LinearLayout(context).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    setPadding(50, 20, 50, 20)
+                }
+                val labelEt = android.widget.EditText(context).apply { hint = "Label" }
+                val urlEt = android.widget.EditText(context).apply { hint = "URL or intent://" }
+                layout.addView(labelEt)
+                layout.addView(urlEt)
+
+                val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+                    .setTitle("New Link")
+                    .setView(layout)
+                    .setPositiveButton("Add") { _, _ ->
+                        val label = labelEt.text.toString().ifEmpty { "Link" }
+                        val url = urlEt.text.toString().ifEmpty { "https://google.com" }
+                        val uuid = java.util.UUID.randomUUID().toString()
+                        val json = org.json.JSONObject().apply {
+                            put("label", label)
+                            put("url", url)
+                        }
+                        manager.addItem("link:$uuid:$json")
+                        close()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .create()
+                dialog.window?.setType(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE)
+                dialog.show()
+            }
+            ActionType.EMPTY_ITEM -> {
+                val et = android.widget.EditText(context).apply { 
+                    hint = "Height in DP (e.g. 20)" 
+                    inputType = android.text.InputType.TYPE_CLASS_NUMBER
+                }
+                val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+                    .setTitle("Add Spacer")
+                    .setView(et)
+                    .setPositiveButton("Add") { _, _ ->
+                        var height = 20
+                        try {
+                            height = et.text.toString().toInt()
+                        } catch (e: Exception) {}
+                        val uuid = java.util.UUID.randomUUID().toString()
+                        val json = org.json.JSONObject().apply {
+                            put("heightDp", height)
+                        }
+                        manager.addItem("spacer:$uuid:$json")
+                        close()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .create()
+                dialog.window?.setType(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE)
+                dialog.show()
+            }
             else -> {
                 Toast.makeText(context, "${item.type.name} selected (Coming soon)", Toast.LENGTH_SHORT).show()
             }

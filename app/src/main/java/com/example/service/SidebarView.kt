@@ -45,8 +45,8 @@ class SidebarView(
         }
 
         val density = context.resources.displayMetrics.density
-        val widthPx = (110 * density).toInt()
-        val heightPx = (context.resources.displayMetrics.heightPixels * 0.8).toInt()
+        val widthPx = (200 * density).toInt()
+        val heightPx = (360 * density).toInt()
 
         val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
         val gravityEdge = if (isRight) Gravity.END else Gravity.START
@@ -58,9 +58,9 @@ class SidebarView(
             WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
-            gravity = gravityEdge or Gravity.CENTER_VERTICAL
+            gravity = gravityEdge or Gravity.BOTTOM
             x = 0
-            y = 0
+            y = (48 * density).toInt()
         }
 
         isFocusableInTouchMode = true
@@ -75,7 +75,7 @@ class SidebarView(
 
         val drawable = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            setColor(Color.parseColor("#E6000000"))
+            setColor(Color.parseColor("#80000000"))
             
             // Adjust corners based on left or right edge
             cornerRadii = if (isRight) {
