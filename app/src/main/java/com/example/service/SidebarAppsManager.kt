@@ -65,7 +65,8 @@ sealed class SidebarItem {
         val uuid: String,
         val name: String,
         val colorHex: String,
-        val items: List<String>
+        val items: List<String>,
+        val folderStyle: Int = 0
     ) : SidebarItem() {
         override val id = "folder:$uuid"
         override val label = name
@@ -289,7 +290,8 @@ class SidebarAppsManager(
                             itemsList.add(itemsArr.getString(i))
                         }
                     }
-                    result.add(SidebarItem.Folder(uuid, obj.getString("name"), obj.getString("colorHex"), itemsList))
+                    val folderStyle = obj.optInt("folderStyle", 0)
+                    result.add(SidebarItem.Folder(uuid, obj.getString("name"), obj.getString("colorHex"), itemsList, folderStyle))
                 } catch (e: Exception) { e.printStackTrace() }
             } else if (id.startsWith("link:")) {
                 try {
@@ -361,6 +363,41 @@ class SidebarAppsManager(
             loadActiveApps()
             withContext(Dispatchers.Main) {
                 onAppsUpdated()
+            }
+        }
+    }
+
+    fun moveItem(id: String, moveUp: Boolean) {
+        coroutineScope.launch(Dispatchers.IO) {
+            val currentStr = prefs.getString("sidebar_apps", """["system:log_keeper", "system:ebook_reader", "system:settings"]""") ?: return@launch
+            val current = JSONArray(currentStr)
+            val items = mutableListOf<String>()
+            var targetIndex = -1
+            for (i in 0 until current.length()) {
+                var item = current.getString(i)
+                if (!item.contains(":")) item = "app:$item"
+                items.add(item)
+                if (item == id) targetIndex = i
+            }
+            if (targetIndex != -1) {
+                if (moveUp && targetIndex > 0) {
+                    val temp = items[targetIndex]
+                    items[targetIndex] = items[targetIndex - 1]
+                    items[targetIndex - 1] = temp
+                } else if (!moveUp && targetIndex < items.size - 1) {
+                    val temp = items[targetIndex]
+                    items[targetIndex] = items[targetIndex + 1]
+                    items[targetIndex + 1] = temp
+                } else {
+                    return@launch
+                }
+                val newArray = JSONArray()
+                items.forEach { newArray.put(it) }
+                prefs.edit().putString("sidebar_apps", newArray.toString()).apply()
+                loadActiveApps()
+                withContext(Dispatchers.Main) {
+                    onAppsUpdated()
+                }
             }
         }
     }

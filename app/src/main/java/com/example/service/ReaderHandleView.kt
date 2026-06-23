@@ -8,6 +8,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.os.Build
 import android.util.Log
 import android.view.Gravity
@@ -17,7 +18,7 @@ import android.view.WindowManager
 import kotlin.math.abs
 
 @SuppressLint("ViewConstructor")
-class TriggerHandleView(
+class ReaderHandleView(
     context: Context,
     private val prefs: SharedPreferences,
     private val windowManager: WindowManager,
@@ -31,7 +32,7 @@ class TriggerHandleView(
     private val clickSlop = 10f
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#3318304A") // Darker base blue, keeping it highly transparent
+        color = Color.parseColor("#44102d42") // slightly different hue, semi-transparent
         style = Paint.Style.FILL
     }
 
@@ -46,8 +47,9 @@ class TriggerHandleView(
         }
 
         val density = context.resources.displayMetrics.density
-        val widthPx = (6 * density).toInt()
-        val heightPx = (120 * density).toInt()
+        // small semi-circle
+        val widthPx = (16 * density).toInt() // width of the handle
+        val heightPx = (60 * density).toInt() // height
 
         layoutParams = WindowManager.LayoutParams(
             widthPx,
@@ -59,7 +61,8 @@ class TriggerHandleView(
         ).apply {
             gravity = Gravity.END or Gravity.TOP
             x = 0 
-            y = prefs.getInt("trigger_y", 500)
+            // Put it slightly above the normal trigger by default
+            y = prefs.getInt("reader_trigger_y", prefs.getInt("trigger_y", 500) - (80 * density).toInt())
         }
 
         setupDrag()
@@ -86,10 +89,9 @@ class TriggerHandleView(
                 }
                 MotionEvent.ACTION_UP -> {
                     if (!isDragging) {
-                        Log.d("TriggerHandleView", "trigger tapped")
                         onTriggerTapped()
                     } else {
-                        prefs.edit().putInt("trigger_y", layoutParams.y).apply()
+                        prefs.edit().putInt("reader_trigger_y", layoutParams.y).apply()
                     }
                     true
                 }
@@ -105,25 +107,16 @@ class TriggerHandleView(
         val h = height.toFloat()
         val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
 
-        // For a 120 degree angle between the vertical edge and the top/bottom edges,
-        // the top edge must be at a 30-degree or 60-degree slope.
-        // Let's use tan(30) approx 0.577. 
-        val angleHeight = w * 0.577f
-
         path.reset()
         if (isRight) {
-            // Anchor to the right edge
+            // Anchor to the right edge (right side is straight, left side is curved)
             path.moveTo(w, 0f)
-            path.lineTo(0f, angleHeight)
-            path.lineTo(0f, h - angleHeight)
-            path.lineTo(w, h)
+            path.cubicTo(0f, 0f, 0f, h, w, h)
             path.close()
         } else {
             // Anchor to the left edge
             path.moveTo(0f, 0f)
-            path.lineTo(w, angleHeight)
-            path.lineTo(w, h - angleHeight)
-            path.lineTo(0f, h)
+            path.cubicTo(w, 0f, w, h, 0f, h)
             path.close()
         }
 
@@ -132,7 +125,7 @@ class TriggerHandleView(
 
     fun attach() {
         try {
-            if (prefs.getBoolean("trigger_visible", true)) {
+            if (prefs.getBoolean("reader_handle_enabled", false)) {
                 if (windowToken == null) {
                     val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
                     layoutParams.gravity = (if (isRight) Gravity.END else Gravity.START) or Gravity.TOP

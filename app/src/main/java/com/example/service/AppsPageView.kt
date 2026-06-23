@@ -21,8 +21,8 @@ class AppsPageView(
     context: Context,
     private val manager: SidebarAppsManager,
     private val serviceScope: CoroutineScope,
-    private val onShowAppPicker: () -> Unit,
-    private val onCloseSidebar: () -> Unit
+    private val onCloseSidebar: () -> Unit,
+    private val onHeightChanged: ((Int) -> Unit)? = null
 ) : FrameLayout(context) {
 
     private val recyclerView: RecyclerView
@@ -30,36 +30,25 @@ class AppsPageView(
 
     private var displayedItems = listOf<SidebarItem>()
     private val expandedFolders = mutableSetOf<String>()
+    
+    // Track measured height
+    private var lastCalculatedHeightPx = 0
+    
+    fun getCurrentHeightPx(): Int {
+        if (lastCalculatedHeightPx == 0) {
+            calculateAndDispatchHeight()
+        }
+        return lastCalculatedHeightPx
+    }
 
     init {
         val density = context.resources.displayMetrics.density
-        val headerHeight = (48 * density).toInt()
-
-        val header = FrameLayout(context).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, headerHeight)
-            
-            val addButton = TextView(context).apply {
-                text = "+ Add"
-                setTextColor(android.graphics.Color.parseColor("#4CAF50"))
-                textSize = 14f
-                gravity = Gravity.CENTER
-                setPadding(0, 0, 0, 0)
-                layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply {
-                    gravity = Gravity.CENTER
-                }
-                setOnClickListener {
-                    onShowAppPicker()
-                }
-            }
-            
-            addView(addButton)
-        }
 
         adapter = AppsAdapter()
 
         recyclerView = RecyclerView(context).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply {
-                topMargin = headerHeight
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                topMargin = 0
             }
             layoutManager = GridLayoutManager(context, 3).apply {
                 spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
@@ -74,7 +63,6 @@ class AppsPageView(
 
         recyclerView.adapter = adapter
 
-        addView(header)
         addView(recyclerView)
     }
 
@@ -100,6 +88,40 @@ class AppsPageView(
         }
         displayedItems = flatList
         adapter.notifyDataSetChanged()
+        
+        calculateAndDispatchHeight()
+    }
+
+    private fun calculateAndDispatchHeight() {
+        var gridHeightDp = 0
+        var currentSpan = 0
+        
+        for (item in displayedItems) {
+            if (item is SidebarItem.Spacer) {
+                if (currentSpan > 0) {
+                    gridHeightDp += 56 // end current row
+                    currentSpan = 0
+                }
+                gridHeightDp += item.heightDp
+            } else {
+                currentSpan += 1
+                if (currentSpan == 3) {
+                    gridHeightDp += 56 // 56dp per normal row
+                    currentSpan = 0
+                }
+            }
+        }
+        if (currentSpan > 0) {
+            gridHeightDp += 56 // partial row
+        }
+        
+        val density = context.resources.displayMetrics.density
+        val totalHeightPx = (gridHeightDp * density).toInt()
+        
+        if (totalHeightPx != lastCalculatedHeightPx) {
+            lastCalculatedHeightPx = totalHeightPx
+            onHeightChanged?.invoke(totalHeightPx)
+        }
     }
 
     private inner class AppsAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -241,13 +263,44 @@ class AppsPageView(
                 }
             }
 
-            if (item is SidebarItem.Folder) {
-                itemView.setOnLongClickListener {
-                    val actions = arrayOf("Rename", "Add App", "Remove")
-                    val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
-                        .setItems(actions) { _, which ->
-                            when (which) {
-                                0 -> {
+            itemView.setOnLongClickListener {
+                val actionList = mutableListOf<String>()
+                actionList.add("Move Up")
+                actionList.add("Move Down")
+                
+                if (item is SidebarItem.App) {
+                    actionList.add("App Info")
+                    actionList.add("Edit Icon")
+                } else if (item is SidebarItem.Folder) {
+                    actionList.add("Rename Folder")
+                    actionList.add("Change Style")
+                    actionList.add("Add App")
+                } else {
+                    actionList.add("Edit Icon")
+                }
+                actionList.add("Remove")
+
+                val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+                    .setItems(actionList.toTypedArray()) { _, which ->
+                        val action = actionList[which]
+                        when (action) {
+                            "Move Up" -> manager.moveItem(item.id, true)
+                            "Move Down" -> manager.moveItem(item.id, false)
+                            "Remove" -> manager.removeItem(item.id)
+                            "App Info" -> {
+                                if (item is SidebarItem.App) {
+                                    try {
+                                        val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                        intent.data = android.net.Uri.parse("package:${item.packageName}")
+                                        intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        context.startActivity(intent)
+                                        onCloseSidebar()
+                                    } catch (e: Exception) { e.printStackTrace() }
+                                }
+                            }
+                            "Edit Icon" -> android.widget.Toast.makeText(context, "Edit icon not fully implemented yet", android.widget.Toast.LENGTH_SHORT).show()
+                            "Rename Folder" -> {
+                                if (item is SidebarItem.Folder) {
                                     val et = android.widget.EditText(context).apply { setText(item.name) }
                                     val renameDialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
                                         .setTitle("Rename")
@@ -257,10 +310,11 @@ class AppsPageView(
                                             val json = org.json.JSONObject().apply {
                                                 put("name", newName)
                                                 put("colorHex", item.colorHex)
-                                                put("items", org.json.JSONArray(item.items))
+                                                val jArr = org.json.JSONArray()
+                                                item.items.forEach { jArr.put(it) }
+                                                put("items", jArr)
+                                                put("folderStyle", item.folderStyle)
                                             }
-                                            // Since addItem does not replace old items easily (unless we just remove and re-add)
-                                            // Let's remove and add at end for simplicity
                                             manager.removeItem(item.id)
                                             manager.addItem("folder:${item.uuid}:$json")
                                         }
@@ -269,10 +323,14 @@ class AppsPageView(
                                     renameDialog.window?.setType(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else android.view.WindowManager.LayoutParams.TYPE_PHONE)
                                     renameDialog.show()
                                 }
-                                1 -> {
-                                    // Set a flag or handle adding apps to a folder.
-                                    // For simplicity, add a random dummy app to demonstrate if picker is hard.
-                                    // Or broadcast an intent/callback to show app picker specifically for this folder.
+                            }
+                            "Change Style" -> {
+                                if (item is SidebarItem.Folder) {
+                                    showFolderStyleDialog(context, item, manager)
+                                }
+                            }
+                            "Add App" -> {
+                                if (item is SidebarItem.Folder) {
                                     val et = android.widget.EditText(context).apply { hint = "Enter app package (e.g. com.android.chrome)" }
                                     val addAppDialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
                                         .setTitle("Add App Package")
@@ -285,7 +343,10 @@ class AppsPageView(
                                                 val json = org.json.JSONObject().apply {
                                                     put("name", item.name)
                                                     put("colorHex", item.colorHex)
-                                                    put("items", org.json.JSONArray(newItems))
+                                                    val jArr = org.json.JSONArray()
+                                                    newItems.forEach { jArr.put(it) }
+                                                    put("items", jArr)
+                                                    put("folderStyle", item.folderStyle)
                                                 }
                                                 manager.removeItem(item.id)
                                                 manager.addItem("folder:${item.uuid}:$json")
@@ -296,21 +357,13 @@ class AppsPageView(
                                     addAppDialog.window?.setType(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else android.view.WindowManager.LayoutParams.TYPE_PHONE)
                                     addAppDialog.show()
                                 }
-                                2 -> {
-                                    manager.removeItem(item.id)
-                                }
                             }
                         }
-                        .create()
-                    dialog.window?.setType(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else android.view.WindowManager.LayoutParams.TYPE_PHONE)
-                    dialog.show()
-                    true
-                }
-            } else {
-                itemView.setOnLongClickListener {
-                    manager.removeItem(item.id)
-                    true
-                }
+                    }
+                    .create()
+                dialog.window?.setType(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else android.view.WindowManager.LayoutParams.TYPE_PHONE)
+                dialog.show()
+                true
             }
 
             if (item is SidebarItem.App) {
@@ -342,16 +395,12 @@ class AppsPageView(
             } else if (item is SidebarItem.Folder) {
                 icon.setImageDrawable(null)
                 icon.clearColorFilter()
-                try {
-                    icon.setBackgroundColor(android.graphics.Color.parseColor(item.colorHex))
-                } catch (e: Exception) {
-                    icon.setBackgroundColor(android.graphics.Color.parseColor("#FF5722"))
-                }
+                icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 
-                // Set folder preview icon using a generic folder icon if no apps,
-                // or just draw a folder icon over the color background.
-                icon.setImageResource(android.R.drawable.ic_dialog_email) // close enough to a folder
-                icon.setColorFilter(android.graphics.Color.WHITE)
+                val cHex = try { android.graphics.Color.parseColor(item.colorHex) } catch(e:Exception){ android.graphics.Color.parseColor("#00BFA5") }
+                val iconC = android.graphics.Color.WHITE
+                
+                icon.setImageDrawable(FolderStyleDrawable(item.folderStyle, cHex, iconC))
             } else if (item is SidebarItem.Link) {
                 icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 icon.setImageResource(android.R.drawable.ic_menu_set_as) // Generic link icon

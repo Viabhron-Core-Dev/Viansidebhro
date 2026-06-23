@@ -26,6 +26,7 @@ class SidebarView(
     private val prefs: SharedPreferences,
     private val windowManager: WindowManager,
     private val defaultPageView: View,
+    private val onAddClicked: (() -> Unit)? = null,
     private val onClose: () -> Unit
 ) : FrameLayout(context) {
 
@@ -46,7 +47,7 @@ class SidebarView(
 
         val density = context.resources.displayMetrics.density
         val widthPx = (200 * density).toInt()
-        val heightPx = (360 * density).toInt()
+        val heightPx = WindowManager.LayoutParams.WRAP_CONTENT
 
         val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
         val gravityEdge = if (isRight) Gravity.END else Gravity.START
@@ -60,7 +61,7 @@ class SidebarView(
         ).apply {
             gravity = gravityEdge or Gravity.BOTTOM
             x = 0
-            y = (48 * density).toInt()
+            y = 0
         }
 
         isFocusableInTouchMode = true
@@ -96,25 +97,38 @@ class SidebarView(
         }
         background = drawable
 
+        val headerHeight = (28 * density).toInt()
         val header = FrameLayout(context).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, (48 * density).toInt())
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, headerHeight)
             
             val closeText = TextView(context).apply {
                 text = "✕"
-                textSize = 24f
+                textSize = 20f
                 setTextColor(Color.WHITE)
                 gravity = Gravity.CENTER
-                layoutParams = LayoutParams((48 * density).toInt(), (48 * density).toInt()).apply {
+                layoutParams = LayoutParams(headerHeight, headerHeight).apply {
                     gravity = Gravity.END or Gravity.CENTER_VERTICAL
                 }
                 setOnClickListener { close() }
             }
             addView(closeText)
+
+            val addText = TextView(context).apply {
+                text = "+"
+                textSize = 24f
+                setTextColor(Color.parseColor("#4CAF50"))
+                gravity = Gravity.CENTER
+                layoutParams = LayoutParams(headerHeight, headerHeight).apply {
+                    gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                }
+                setOnClickListener { onAddClicked?.invoke() }
+            }
+            addView(addText)
         }
 
         container = FrameLayout(context).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply {
-                topMargin = (48 * density).toInt()
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
+                topMargin = headerHeight
             }
         }
         
@@ -129,7 +143,7 @@ class SidebarView(
         pages.add(placeholderPage)
         
         viewPager = ViewPager2(context).apply {
-            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply {
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
                 bottomMargin = (30 * density).toInt()
             }
         }
@@ -207,6 +221,20 @@ class SidebarView(
                 dots[i].setColorFilter(Color.parseColor("#88FFFFFF"))
                 dots[i].setPadding(0, 0, 0, 0)
             }
+        }
+    }
+
+    fun updateHeight(pageHeightPx: Int) {
+        val density = context.resources.displayMetrics.density
+        // pageHeightPx might strictly be its content, but let's just add our new thin header (28) + dots (30) 
+        var targetHeight = pageHeightPx + (28 + 30) * density
+        
+        // Min height
+        targetHeight = Math.max((150 * density), targetHeight)
+        
+        layoutParams.height = targetHeight.toInt()
+        if (windowToken != null) {
+            windowManager.updateViewLayout(this, layoutParams)
         }
     }
 

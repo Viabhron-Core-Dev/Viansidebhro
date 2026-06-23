@@ -82,6 +82,12 @@ class FloatingReaderService : Service() {
             "use_dark_theme" -> {
                 applyThemeFromPrefs()
             }
+            "reader_handle_enabled", "trigger_position" -> {
+                triggerHandleView?.detach()
+                triggerHandleView?.attach()
+                readerHandleView?.detach()
+                readerHandleView?.attach()
+            }
             "speed_indicator_enabled" -> {
                 netSpeedEnabled = sharedPreferences.getBoolean("speed_indicator_enabled", false)
                 if (netSpeedEnabled) {
@@ -120,6 +126,7 @@ class FloatingReaderService : Service() {
         overlayLibrary?.setBackgroundColor(bgColor)
     }
     private var triggerHandleView: TriggerHandleView? = null
+    private var readerHandleView: ReaderHandleView? = null
     private var sidebarView: SidebarView? = null
     private var defaultSidebarPage: View? = null
     private lateinit var appsManager: SidebarAppsManager
@@ -212,8 +219,10 @@ class FloatingReaderService : Service() {
         }
 
         appsPageView = AppsPageView(this, appsManager, serviceScope,
-            onShowAppPicker = { showAddElementOverlay() },
-            onCloseSidebar = { sidebarView?.detach() }
+            onCloseSidebar = { sidebarView?.detach() },
+            onHeightChanged = { newHeight ->
+                sidebarView?.updateHeight(newHeight)
+            }
         )
         
         defaultSidebarPage = appsPageView
@@ -224,6 +233,18 @@ class FloatingReaderService : Service() {
             showSidebar()
         }
         triggerHandleView?.attach()
+
+        readerHandleView = ReaderHandleView(this, prefs, windowManager) {
+            android.util.Log.d("VianSide", "reader trigger tapped")
+            if (isFolded) {
+                val lastBook = prefs.getInt("last_book_id", -1)
+                if (currentBook == null && lastBook != -1) loadBook(lastBook)
+                setFolded(false)
+            } else {
+                setFolded(true)
+            }
+        }
+        readerHandleView?.attach()
         
         setupNetSpeed()
         updatePersistentNotification()
@@ -343,11 +364,14 @@ class FloatingReaderService : Service() {
     }
 
     private fun createSpeedIcon(speedBytes: Long): androidx.core.graphics.drawable.IconCompat {
-        val size = 128
+        // Pixel-perfect sizing for status bar icon (typically 24dp)
+        val density = resources.displayMetrics.density
+        val size = (24 * density).toInt().coerceAtLeast(24)
+        
         val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
         
-        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.LINEAR_TEXT_FLAG).apply {
             color = android.graphics.Color.WHITE
             textAlign = android.graphics.Paint.Align.CENTER
         }
@@ -378,33 +402,38 @@ class FloatingReaderService : Service() {
             }
         }
         
-        // Scale number text
+        // Use Typeface.DEFAULT_BOLD for clarity at small sizes
         textPaint.typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
-        var valueTextSize = 85f
+        var valueTextSize = size * 0.65f
         textPaint.textSize = valueTextSize
-        while (textPaint.measureText(valueStr) > size - 4 && valueTextSize > 20f) {
-            valueTextSize -= 2f
+        while (textPaint.measureText(valueStr) > size - (2 * density) && valueTextSize > size * 0.2f) {
+            valueTextSize -= density * 0.5f
             textPaint.textSize = valueTextSize
         }
-        canvas.drawText(valueStr, size / 2f, size * 0.55f, textPaint)
+        val valueY = size * 0.5f - ((textPaint.descent() + textPaint.ascent()) / 2) - (size * 0.15f)
+        canvas.drawText(valueStr, size / 2f, valueY, textPaint)
         
-        // Scale unit text
         textPaint.typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL)
-        var unitTextSize = 45f
+        var unitTextSize = size * 0.35f
         textPaint.textSize = unitTextSize
-        while (textPaint.measureText(unitStr) > size - 4 && unitTextSize > 10f) {
-            unitTextSize -= 2f
+        while (textPaint.measureText(unitStr) > size - (2 * density) && unitTextSize > size * 0.1f) {
+            unitTextSize -= density * 0.5f
             textPaint.textSize = unitTextSize
         }
-        canvas.drawText(unitStr, size / 2f, size * 0.90f, textPaint)
+        val unitY = size * 0.95f - textPaint.descent()
+        canvas.drawText(unitStr, size / 2f, unitY, textPaint)
         
         return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
     }
     
     private fun showSidebar() {
         if (sidebarView == null) {
-            sidebarView = SidebarView(this, prefs, windowManager, defaultSidebarPage!!) {
-                sidebarView?.detach()
+            sidebarView = SidebarView(this, prefs, windowManager, defaultSidebarPage!!,
+                onAddClicked = { showAddElementOverlay() },
+                onClose = { sidebarView?.detach() }
+            )
+            if (defaultSidebarPage is AppsPageView) {
+                sidebarView?.updateHeight((defaultSidebarPage as AppsPageView).getCurrentHeightPx())
             }
         }
         sidebarView?.attach()
@@ -2459,6 +2488,8 @@ class FloatingReaderService : Service() {
         }
         triggerHandleView?.detach()
         triggerHandleView = null
+        readerHandleView?.detach()
+        readerHandleView = null
         saveCurrentPosition()
         mediaSession?.isActive = false
         mediaSession?.release()
