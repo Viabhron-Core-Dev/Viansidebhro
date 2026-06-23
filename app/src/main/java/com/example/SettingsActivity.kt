@@ -139,6 +139,22 @@ fun ReaderSettingsScreen(onBack: () -> Unit) {
     var useDarkTheme by remember { mutableStateOf(prefs.getBoolean("use_dark_theme", true)) }
     var readerHandleEnabled by remember { mutableStateOf(prefs.getBoolean("reader_handle_enabled", false)) }
 
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            Toast.makeText(context, "Importing data...", Toast.LENGTH_SHORT).show()
+            coroutineScope.launch {
+                val res = BackupHelper.importData(context, uri)
+                if (res.isSuccess) {
+                    Toast.makeText(context, "Import successful. Please restart the app.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "Import failed", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("eBook Reader Settings") },
@@ -288,6 +304,13 @@ fun ReaderSettingsScreen(onBack: () -> Unit) {
                                 Toast.makeText(context, "Backup failed", Toast.LENGTH_SHORT).show()
                             }
                         }
+                    }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Import Backup") },
+                    modifier = Modifier.clickable {
+                        importLauncher.launch("application/zip")
                     }
                 )
                 Divider()

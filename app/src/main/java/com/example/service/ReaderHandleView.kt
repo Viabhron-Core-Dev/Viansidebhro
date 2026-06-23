@@ -123,13 +123,16 @@ class ReaderHandleView(
         canvas.drawPath(path, paint)
     }
 
+    private var isAddedToWindow = false
+
     fun attach() {
         try {
             if (prefs.getBoolean("reader_handle_enabled", false)) {
-                if (windowToken == null) {
+                if (!isAddedToWindow) {
                     val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
                     layoutParams.gravity = (if (isRight) Gravity.END else Gravity.START) or Gravity.TOP
                     windowManager.addView(this, layoutParams)
+                    isAddedToWindow = true
                 }
             }
         } catch (e: Exception) {
@@ -139,11 +142,21 @@ class ReaderHandleView(
 
     fun detach() {
         try {
-            if (windowToken != null) {
+            if (isAddedToWindow) {
                 windowManager.removeView(this)
+                isAddedToWindow = false
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    fun updatePosition() {
+        val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
+        layoutParams.gravity = (if (isRight) Gravity.END else Gravity.START) or Gravity.TOP
+        if (isAddedToWindow) {
+            windowManager.updateViewLayout(this, layoutParams)
+        }
+        invalidate()
     }
 }

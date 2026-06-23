@@ -73,25 +73,15 @@ class NetSpeedManager(
             var wifiBytes = 0L
             
             try {
-                val wifiStats = manager.querySummary(android.net.NetworkCapabilities.TRANSPORT_WIFI, null, start, end)
-                val bucket = android.app.usage.NetworkStats.Bucket()
-                while (wifiStats.hasNextBucket()) {
-                    wifiStats.getNextBucket(bucket)
-                    wifiBytes += bucket.rxBytes + bucket.txBytes
-                }
-                wifiStats.close()
+                val bucket = manager.querySummaryForDevice(android.net.NetworkCapabilities.TRANSPORT_WIFI, null, start, end)
+                wifiBytes = bucket.rxBytes + bucket.txBytes
             } catch (e: Exception) {
                 e.printStackTrace()
             }
             
             try {
-                val mobileStats = manager.querySummary(android.net.NetworkCapabilities.TRANSPORT_CELLULAR, null, start, end)
-                val bucket = android.app.usage.NetworkStats.Bucket()
-                while (mobileStats.hasNextBucket()) {
-                    mobileStats.getNextBucket(bucket)
-                    mobileBytes += bucket.rxBytes + bucket.txBytes
-                }
-                mobileStats.close()
+                val bucket = manager.querySummaryForDevice(android.net.NetworkCapabilities.TRANSPORT_CELLULAR, null, start, end)
+                mobileBytes = bucket.rxBytes + bucket.txBytes
             } catch (e: Exception) {
                 e.printStackTrace()
             }

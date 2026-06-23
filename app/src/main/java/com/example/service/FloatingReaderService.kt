@@ -82,11 +82,16 @@ class FloatingReaderService : Service() {
             "use_dark_theme" -> {
                 applyThemeFromPrefs()
             }
-            "reader_handle_enabled", "trigger_position" -> {
-                triggerHandleView?.detach()
-                triggerHandleView?.attach()
-                readerHandleView?.detach()
-                readerHandleView?.attach()
+            "trigger_position" -> {
+                triggerHandleView?.updatePosition()
+                readerHandleView?.updatePosition()
+            }
+            "reader_handle_enabled" -> {
+                if (sharedPreferences.getBoolean("reader_handle_enabled", false)) {
+                    readerHandleView?.attach()
+                } else {
+                    readerHandleView?.detach()
+                }
             }
             "speed_indicator_enabled" -> {
                 netSpeedEnabled = sharedPreferences.getBoolean("speed_indicator_enabled", false)
@@ -364,14 +369,13 @@ class FloatingReaderService : Service() {
     }
 
     private fun createSpeedIcon(speedBytes: Long): androidx.core.graphics.drawable.IconCompat {
-        // Pixel-perfect sizing for status bar icon (typically 24dp)
-        val density = resources.displayMetrics.density
-        val size = (24 * density).toInt().coerceAtLeast(24)
+        // High resolution for sharpness (system will scale it down smoothly for status bar)
+        val size = 144
         
         val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
         
-        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.LINEAR_TEXT_FLAG).apply {
+        val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.SUBPIXEL_TEXT_FLAG).apply {
             color = android.graphics.Color.WHITE
             textAlign = android.graphics.Paint.Align.CENTER
         }
@@ -402,22 +406,22 @@ class FloatingReaderService : Service() {
             }
         }
         
-        // Use Typeface.DEFAULT_BOLD for clarity at small sizes
-        textPaint.typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.BOLD)
+        // Use sans-serif-medium like system time
+        textPaint.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         var valueTextSize = size * 0.65f
         textPaint.textSize = valueTextSize
-        while (textPaint.measureText(valueStr) > size - (2 * density) && valueTextSize > size * 0.2f) {
-            valueTextSize -= density * 0.5f
+        while (textPaint.measureText(valueStr) > size - 8f && valueTextSize > size * 0.2f) {
+            valueTextSize -= 2f
             textPaint.textSize = valueTextSize
         }
         val valueY = size * 0.5f - ((textPaint.descent() + textPaint.ascent()) / 2) - (size * 0.15f)
         canvas.drawText(valueStr, size / 2f, valueY, textPaint)
         
-        textPaint.typeface = android.graphics.Typeface.create("sans-serif-condensed", android.graphics.Typeface.NORMAL)
+        textPaint.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         var unitTextSize = size * 0.35f
         textPaint.textSize = unitTextSize
-        while (textPaint.measureText(unitStr) > size - (2 * density) && unitTextSize > size * 0.1f) {
-            unitTextSize -= density * 0.5f
+        while (textPaint.measureText(unitStr) > size - 8f && unitTextSize > size * 0.1f) {
+            unitTextSize -= 2f
             textPaint.textSize = unitTextSize
         }
         val unitY = size * 0.95f - textPaint.descent()

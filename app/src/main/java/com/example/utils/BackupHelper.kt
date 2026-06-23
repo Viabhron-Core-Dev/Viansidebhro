@@ -67,6 +67,53 @@ object BackupHelper {
         }
     }
     
+    suspend fun importData(context: Context, uri: android.net.Uri): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val dbDir = context.getDatabasePath("litereader_db")?.parentFile
+            val prefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+            val filesDir = context.filesDir
+            
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                ZipInputStream(inputStream).use { zis ->
+                    var entry = zis.nextEntry
+                    while (entry != null) {
+                        val name = entry.name
+                        if (!entry.isDirectory) {
+                            val targetFile = when {
+                                name.startsWith("databases/") -> {
+                                    val fileName = name.removePrefix("databases/")
+                                    if (dbDir != null) File(dbDir, fileName) else null
+                                }
+                                name.startsWith("shared_prefs/") -> {
+                                    val fileName = name.removePrefix("shared_prefs/")
+                                    File(prefsDir, fileName)
+                                }
+                                name.startsWith("files/") -> {
+                                    val fileName = name.removePrefix("files/")
+                                    File(filesDir, fileName)
+                                }
+                                else -> null
+                            }
+                            
+                            if (targetFile != null) {
+                                targetFile.parentFile?.mkdirs()
+                                FileOutputStream(targetFile).use { fos ->
+                                    zis.copyTo(fos)
+                                }
+                            }
+                        }
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                    }
+                }
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Log.e("BackupHelper", "Import failed", e)
+            Result.failure(e)
+        }
+    }
+
     private fun zipDirectory(dir: File, path: String, zos: ZipOutputStream) {
         dir.listFiles()?.forEach { file ->
             val childPath = if (path.isEmpty()) file.name else "$path/${file.name}"
