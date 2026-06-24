@@ -38,7 +38,7 @@ class NetSpeedManager(
         job = coroutineScope.launch {
             syncSystemDataUsage()
             while (isActive && isRunning) {
-                delay(1000)
+                delay(500)
                 updateSpeed()
             }
         }

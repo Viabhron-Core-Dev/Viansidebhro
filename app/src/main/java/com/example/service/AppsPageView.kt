@@ -396,8 +396,9 @@ class AppsPageView(
                     elevation = 8f * context.resources.displayMetrics.density
                 }
                 
-                // Show dropdown anchored to the itemView
-                popupWindow?.showAsDropDown(itemView, itemView.width / 4, -itemView.height / 2)
+                val location = IntArray(2)
+                itemView.getLocationOnScreen(location)
+                popupWindow?.showAtLocation(itemView, android.view.Gravity.NO_GRAVITY, location[0] + itemView.width / 4, location[1] + itemView.height / 2)
                 
                 true
             }

@@ -885,7 +885,7 @@ class FloatingReaderService : Service() {
     }
 
     private fun loadLibraryBooks() {
-        val useScopedDir = prefs.getBoolean("use_scoped_dir", false)
+        val useScopedDir = prefs.getBoolean("use_scoped_dir", true)
         val btnRecent = floatingView.findViewById<Button>(R.id.btn_tab_recent)
         val btnImported = floatingView.findViewById<Button>(R.id.btn_tab_imported)
         val barExplorerTools = floatingView.findViewById<View>(R.id.bar_explorer_tools)
@@ -1067,13 +1067,12 @@ class FloatingReaderService : Service() {
                 // Settings listeners
                 floatingView.findViewById<android.view.View>(R.id.btn_library_settings)?.setOnClickListener {
                     val intent = Intent(this@FloatingReaderService, com.example.SettingsActivity::class.java).apply {
-                        putExtra("start_route", "general")
+                        putExtra("start_route", "reader")
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     }
                     try { startActivity(intent) } catch (e: Exception) { AppLogger.d("Service", "Failed to start settings: ${e.message}") }
                     setFolded(true)
                 }
-                floatingView.findViewById<android.view.View>(R.id.btn_library_notes)?.setOnClickListener { openNotesView() }
                 floatingView.findViewById<android.view.View>(R.id.btn_library_tracker)?.setOnClickListener {
                     val intent = android.content.Intent(this, com.example.TrackerActivity::class.java).apply {
                         addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -1558,6 +1557,19 @@ class FloatingReaderService : Service() {
                     book = book.copy(lastReadChapter = trackerBook.readChapters)
                 }
                 db.epubDao().updateBook(book)
+                
+                // Trim library to 10 most recent books
+                val allBooks = db.epubDao().getAllBooks()
+                if (allBooks.size > 10) {
+                    for (i in 10 until allBooks.size) {
+                        val bookToDelete = allBooks[i]
+                        db.epubDao().deleteBook(bookToDelete)
+                        File(filesDir, "book_${bookToDelete.id}").deleteRecursively()
+                        val origFile = File(bookToDelete.filePath)
+                        if (origFile.exists()) origFile.delete()
+                    }
+                }
+                
                 currentBook = book
                 
                 var targetChapter = book.lastReadChapter

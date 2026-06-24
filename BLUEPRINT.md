@@ -343,6 +343,8 @@ Scope: Brightness, timeout, orientation elements in sidebar (discrete button app
 - Logging implementation: DisplayHandler, Volume, Media, and System Actions now emit correct tracking traces into AppDatabase via `LogKeeper`.
 - Screen orientation: Toggle Auto / Portrait locked
   via Settings.System.ACCELEROMETER_ROTATION
+- App long-press context menu rendering position fixed.
+- Reverted chapter text deletion logic — books keep parsed chapters until they fall out of the 10 most recent list.
 - Requires WRITE_SETTINGS — add to manifest.
   Permission grant: ACTION_MANAGE_WRITE_SETTINGS intent, prompted on action tap if not granted.
 - Addable from sidebar add menu under "Display Controls" section
