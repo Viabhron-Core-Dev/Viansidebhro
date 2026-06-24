@@ -550,6 +550,20 @@ fun DataSettingsScreen(onBack: () -> Unit) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             item {
                 ListItem(
+                    headlineContent = { Text("Reset Data Tracking") },
+                    supportingContent = { Text("Reset today's tracked data usage to 0 MB. Use this if the tracking spikes due to an Android error.") },
+                    modifier = Modifier.clickable {
+                        context.getSharedPreferences("reader_prefs", Context.MODE_PRIVATE).edit()
+                            .putLong("daily_mobile_rx", 0L)
+                            .putLong("daily_mobile_tx", 0L)
+                            .putLong("daily_wifi_rx", 0L)
+                            .putLong("daily_wifi_tx", 0L)
+                            .apply()
+                        Toast.makeText(context, "Data usage reset to 0", Toast.LENGTH_SHORT).show()
+                    }
+                )
+                Divider()
+                ListItem(
                     headlineContent = { Text("Backup Full App Data") },
                     supportingContent = { Text("Includes everything: reader data, sidebar structure, and all settings.") },
                     modifier = Modifier.clickable {

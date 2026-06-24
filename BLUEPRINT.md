@@ -345,6 +345,8 @@ Scope: Brightness, timeout, orientation elements in sidebar (discrete button app
   via Settings.System.ACCELEROMETER_ROTATION
 - App long-press context menu rendering position fixed.
 - Reverted chapter text deletion logic — books keep parsed chapters until they fall out of the 10 most recent list.
+- Fixed 55GB NetSpeed Data tracking spike caused by Android TrafficStats -1 (UNSUPPORTED) values generating negative diff underflows that maxed out the tracking variables on network state changes. Added a max 500 MB per-interval sanity cap.
+- Added a manual 'Reset Data Tracking' button under Data Settings.
 - Requires WRITE_SETTINGS — add to manifest.
   Permission grant: ACTION_MANAGE_WRITE_SETTINGS intent, prompted on action tap if not granted.
 - Addable from sidebar add menu under "Display Controls" section

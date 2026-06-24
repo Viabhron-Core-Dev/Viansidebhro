@@ -123,10 +123,10 @@ class NetSpeedManager(
         val timeDiff = currentTime - lastTime
         if (timeDiff <= 0) return
 
-        val totalRxDiff = max(0L, currentTotalRx - lastTotalRx)
-        val totalTxDiff = max(0L, currentTotalTx - lastTotalTx)
-        val mobileRxDiff = max(0L, currentMobileRx - lastMobileRx)
-        val mobileTxDiff = max(0L, currentMobileTx - lastMobileTx)
+        val totalRxDiff = if (lastTotalRx == TrafficStats.UNSUPPORTED.toLong() || currentTotalRx < lastTotalRx) 0L else max(0L, currentTotalRx - lastTotalRx)
+        val totalTxDiff = if (lastTotalTx == TrafficStats.UNSUPPORTED.toLong() || currentTotalTx < lastTotalTx) 0L else max(0L, currentTotalTx - lastTotalTx)
+        val mobileRxDiff = if (lastMobileRx == TrafficStats.UNSUPPORTED.toLong() || currentMobileRx == TrafficStats.UNSUPPORTED.toLong() || currentMobileRx < lastMobileRx) 0L else max(0L, currentMobileRx - lastMobileRx)
+        val mobileTxDiff = if (lastMobileTx == TrafficStats.UNSUPPORTED.toLong() || currentMobileTx == TrafficStats.UNSUPPORTED.toLong() || currentMobileTx < lastMobileTx) 0L else max(0L, currentMobileTx - lastMobileTx)
         
         val wifiRxDiff = max(0L, totalRxDiff - mobileRxDiff)
         val wifiTxDiff = max(0L, totalTxDiff - mobileTxDiff)
@@ -138,10 +138,17 @@ class NetSpeedManager(
             onSpeedUpdate(rxSec, txSec)
         }
         
-        var dailyMobileRx = prefs.getLong("daily_mobile_rx", 0) + mobileRxDiff
-        var dailyMobileTx = prefs.getLong("daily_mobile_tx", 0) + mobileTxDiff
-        var dailyWifiRx = prefs.getLong("daily_wifi_rx", 0) + wifiRxDiff
-        var dailyWifiTx = prefs.getLong("daily_wifi_tx", 0) + wifiTxDiff
+        // Cap max diff to 500 MB per interval to prevent spikes on state changes
+        val maxDiff = 500L * 1024 * 1024
+        val safeMobileRxDiff = if (mobileRxDiff > maxDiff) 0L else mobileRxDiff
+        val safeMobileTxDiff = if (mobileTxDiff > maxDiff) 0L else mobileTxDiff
+        val safeWifiRxDiff = if (wifiRxDiff > maxDiff) 0L else wifiRxDiff
+        val safeWifiTxDiff = if (wifiTxDiff > maxDiff) 0L else wifiTxDiff
+        
+        var dailyMobileRx = prefs.getLong("daily_mobile_rx", 0) + safeMobileRxDiff
+        var dailyMobileTx = prefs.getLong("daily_mobile_tx", 0) + safeMobileTxDiff
+        var dailyWifiRx = prefs.getLong("daily_wifi_rx", 0) + safeWifiRxDiff
+        var dailyWifiTx = prefs.getLong("daily_wifi_tx", 0) + safeWifiTxDiff
         
         prefs.edit()
             .putLong("daily_mobile_rx", dailyMobileRx)
