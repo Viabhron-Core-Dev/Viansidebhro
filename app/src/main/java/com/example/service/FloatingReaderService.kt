@@ -382,7 +382,7 @@ class FloatingReaderService : Service() {
 
     private fun createSpeedIcon(speedBytes: Long): androidx.core.graphics.drawable.IconCompat {
         // High resolution for sharpness (system will scale it down smoothly for status bar)
-        val size = 144
+        val size = 200
         
         val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(bitmap)
@@ -420,22 +420,23 @@ class FloatingReaderService : Service() {
         
         // Use sans-serif-medium like system time
         textPaint.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
-        var valueTextSize = size * 0.65f
+        var valueTextSize = size * 0.55f
         textPaint.textSize = valueTextSize
         while (textPaint.measureText(valueStr) > size - 8f && valueTextSize > size * 0.2f) {
             valueTextSize -= 2f
             textPaint.textSize = valueTextSize
         }
-        val valueY = size * 0.5f - ((textPaint.descent() + textPaint.ascent()) / 2) - (size * 0.15f)
+        // Top text
+        val valueY = -textPaint.ascent() + size * 0.05f
         canvas.drawText(valueStr, size / 2f, valueY, textPaint)
         
-        textPaint.typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         var unitTextSize = size * 0.35f
         textPaint.textSize = unitTextSize
         while (textPaint.measureText(unitStr) > size - 8f && unitTextSize > size * 0.1f) {
             unitTextSize -= 2f
             textPaint.textSize = unitTextSize
         }
+        // Bottom text
         val unitY = size * 0.95f - textPaint.descent()
         canvas.drawText(unitStr, size / 2f, unitY, textPaint)
         
