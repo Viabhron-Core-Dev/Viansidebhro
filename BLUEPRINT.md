@@ -359,16 +359,18 @@ Trigger handle settings:
 - Appearance: color, transparency, shape (pill/rectangle), width, height
 - Visibility: show/hide toggle
 
+Sidebar Page Management settings:
+- Dedicated UI to manage Sidebar pages
+- Add new pages: Grid (Apps/Shortcuts), System Actions, Contacts, Scheduler, Calculator, Compass, Reader
+- Delete existing pages
+- Reorder pages via drag-and-drop or up/down arrows
+- Set default page (the page that opens by default)
+- Configure page-specific layouts (e.g., Grid columns: 3/4/5, Wrap/Match, Stick Alignment)
+
 Sidebar settings:
-- Default page: picker (Apps / Controls / Reader — populated as pages are added)
 - Sidebar width: 200dp-320dp
 - Background color and transparency
 - Auto-close: toggle + timeout duration (ms)
-
-Apps Page settings:
-- Grid columns: 3 / 4 / 5 (default 3)
-- Grid length mode: Wrap content / Match parent (default Wrap content)
-- Grid stick mode (Alignment): Top / Bottom / Center (default Bottom Right/Left depending on edge)
 
 Display controls settings:
 - WRITE_SETTINGS permission status and grant button if not granted
@@ -492,7 +494,32 @@ Scope: System toggle tiles loaded only when page is visible.
 - On sidebar close: tiles page destroyed (nulled)
 - Goal: toggles functional, zero RAM cost when page not visited
 
-### Phase F14 — Trigger Gestures
+### Phase F14 — Sidebar Scheduler Page (IMPLEMENTED)
+Scope: Lightweight task/reminder scheduler page.
+- Built only when swiped to
+- Simple UI: Title, note, and time
+- Plus button to add new reminders
+- Items sorted by time
+- Reminders shown as clean cards
+- Long press an item to edit or delete it
+- Persisted to local database or SharedPreferences
+- Goal: simple, lightweight task tracking inside the sidebar
+
+### Phase F15 — Sidebar Calculator Page (IMPLEMENTED)
+Scope: Simple lightweight calculator page.
+- Built only when swiped to
+- Standard grid layout for number pad and basic operators (+, -, *, /)
+- Clean result display
+- Goal: functional fast calculator with zero RAM cost when not open
+
+### Phase F16 — Sidebar Compass Page (IMPLEMENTED)
+Scope: Simple lightweight compass page.
+- Built only when swiped to
+- Reads orientation sensor data, updates a clean compass visual
+- Stops listening to sensors when page is hidden or sidebar closed
+- Goal: fast direction checking with zero idle battery drain
+
+### Phase F17 — Trigger Gestures
 Scope: Full 7-gesture support on trigger handle. Settings (F7) required for assignment config.
 - Detect on TriggerHandleView using GestureDetector:
   Tap / Double tap / Long press / Swipe up / Swipe down / Swipe left / Swipe right
@@ -505,13 +532,13 @@ Scope: Full 7-gesture support on trigger handle. Settings (F7) required for assi
 - Configurable in Phase F7 settings — add gesture assignment UI there now
 - Goal: all 7 gestures detected and dispatched correctly
 
-### Phase F15 — Call Recorder Core
+### Phase F18 — Call Recorder Core
 Scope: Automatic call recording inside FloatingReaderService.
 - `CallRecorderManager.kt` — instantiated inside FloatingReaderService:
   - Registers TelephonyCallback (API 31+) with PhoneStateListener fallback (API 30)
   - On OFFHOOK:
     1. Check global enable flag (`call_recorder_enabled` in SharedPreferences)
-    2. Check filter rules (Phase F17)
+    2. Check filter rules (Phase F20)
     3. If recording should proceed: start MediaRecorder with AudioSource.MIC
     4. Log decision to running log
   - On IDLE: stop MediaRecorder, finalize and save file, reset state
@@ -528,7 +555,7 @@ Scope: Automatic call recording inside FloatingReaderService.
   - Add "Pause Recording" notification action button
 - Goal: all calls recorded when enabled, mic strictly dormant between calls
 
-### Phase F16 — Call Recorder Storage and Format
+### Phase F19 — Call Recorder Storage and Format
 Scope: Output format configuration for recordings.
 - Add to settings (Phase F7) under "Call Recorder" section:
   - Save folder: SAF folder picker (ACTION_OPEN_DOCUMENT_TREE)
@@ -538,7 +565,7 @@ Scope: Output format configuration for recordings.
 - Changes apply to next recording — not retroactive
 - Goal: format, quality, and save location user-configurable
 
-### Phase F17 — Call Filtering
+### Phase F20 — Call Filtering
 Scope: Selective recording rules checked before recording starts.
 - Filter modes (one active at a time):
   - Record all calls (default)
@@ -554,7 +581,7 @@ Scope: Selective recording rules checked before recording starts.
 - Filter decision logged to running log
 - Goal: unwanted calls never recorded, filter applied before mic ever activates
 
-### Phase F18 — Manual Floating Record Button
+### Phase F21 — Manual Floating Record Button
 Scope: Manual recording trigger visible only during active calls.
 - Small Standard View floating button via WindowManager TYPE_APPLICATION_OVERLAY
 - Draggable, default position: bottom right, saves position to SharedPreferences
@@ -567,7 +594,7 @@ Scope: Manual recording trigger visible only during active calls.
 - Shows "REC" label or record icon — clearly legible
 - Goal: button appears only during calls, manual record works, zero presence between calls
 
-### Phase F19 — Recordings List
+### Phase F22 — Recordings List
 Scope: Browse, search, play, and manage recordings.
 - RecordingsActivity (Compose):
   - Scans save folder on open — not continuously watched
@@ -585,7 +612,7 @@ Scope: Browse, search, play, and manage recordings.
 - Accessible from sidebar element and MainActivity
 - Goal: recordings browseable, searchable, playable, deletable, shareable
 
-### Phase F20 — PIN Lock on Recordings
+### Phase F23 — PIN Lock on Recordings
 Scope: Privacy protection for recordings list.
 - Toggle in settings: "Enable PIN lock on recordings"
 - 4-digit PIN, stored as SHA-256 hash in SharedPreferences — never plain text
@@ -618,10 +645,10 @@ Scope: Privacy protection for recordings list.
 - WRITE_SETTINGS — Phase F6 (brightness, timeout, orientation)
 - ACCESS_NETWORK_STATE — Phase F9 (net speed)
 - CHANGE_NETWORK_STATE — Phase F9
-- RECORD_AUDIO — Phase F15 (call recorder)
-- READ_PHONE_STATE — Phase F15
-- PROCESS_OUTGOING_CALLS — Phase F15
-- READ_CALL_LOG — Phase F15
+- RECORD_AUDIO — Phase F18 (call recorder)
+- READ_PHONE_STATE — Phase F18
+- PROCESS_OUTGOING_CALLS — Phase F18
+- READ_CALL_LOG — Phase F18
 
 ---
 

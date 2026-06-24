@@ -25,7 +25,8 @@ class SidebarView(
     context: Context,
     private val prefs: SharedPreferences,
     private val windowManager: WindowManager,
-    private val defaultPageView: View,
+    private val pagesList: List<View>,
+    private val defaultPageIndex: Int,
     private val onAddClicked: (() -> Unit)? = null,
     private val onClose: () -> Unit
 ) : FrameLayout(context) {
@@ -132,15 +133,7 @@ class SidebarView(
             }
         }
         
-        pages.add(defaultPageView)
-        
-        val placeholderPage = TextView(context).apply {
-            text = "Feature coming soon..."
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-            textSize = 16f
-        }
-        pages.add(placeholderPage)
+        pages.addAll(pagesList)
         
         viewPager = ViewPager2(context).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
@@ -176,6 +169,8 @@ class SidebarView(
         }
         
         setupDots(pages.size)
+        viewPager.setCurrentItem(defaultPageIndex, false)
+        updateDots(defaultPageIndex)
         viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
                 updateDots(position)

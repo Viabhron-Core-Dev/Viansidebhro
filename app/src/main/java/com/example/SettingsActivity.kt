@@ -58,6 +58,8 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
                     onNavigateToReader = { currentRoute = "reader" },
                     onNavigateToGeneral = { currentRoute = "general" },
                     onNavigateToNetSpeed = { currentRoute = "netspeed" },
+                    onNavigateToData = { currentRoute = "data" },
+                    onNavigateToPages = { currentRoute = "pages" },
                     onBack = onFinish
                 )
                 "reader" -> ReaderSettingsScreen(
@@ -69,6 +71,12 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
                 "netspeed" -> NetSpeedSettingsScreen(
                     onBack = { currentRoute = "main" }
                 )
+                "data" -> DataSettingsScreen(
+                    onBack = { currentRoute = "main" }
+                )
+                "pages" -> PageManagementSettingsScreen(
+                    onBack = { currentRoute = "main" }
+                )
             }
         }
     }
@@ -76,7 +84,7 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -> Unit, onNavigateToNetSpeed: () -> Unit, onBack: () -> Unit) {
+fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -> Unit, onNavigateToNetSpeed: () -> Unit, onNavigateToData: () -> Unit, onNavigateToPages: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -102,6 +110,12 @@ fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -
                 )
                 Divider()
                 ListItem(
+                    headlineContent = { Text("Sidebar Page Management") },
+                    supportingContent = { Text("Add, remove, reorder sidebar pages") },
+                    modifier = Modifier.clickable { onNavigateToPages() }
+                )
+                Divider()
+                ListItem(
                     headlineContent = { Text("NetSpeed Indicator Settings") },
                     supportingContent = { Text("Toggle, units, and data usage statistics") },
                     modifier = Modifier.clickable { onNavigateToNetSpeed() }
@@ -116,6 +130,12 @@ fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -
                         }
                         context.startActivity(intent)
                     }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Data & Backup") },
+                    supportingContent = { Text("Full app backup and restore") },
+                    modifier = Modifier.clickable { onNavigateToData() }
                 )
                 Divider()
             }
@@ -278,11 +298,12 @@ fun ReaderSettingsScreen(onBack: () -> Unit) {
                 )
                 Divider()
                 ListItem(
-                    headlineContent = { Text("Backup Data (No Books)") },
+                    headlineContent = { Text("Backup Reader Data") },
+                    supportingContent = { Text("Database and settings, no books") },
                     modifier = Modifier.clickable {
-                        Toast.makeText(context, "Backing up data...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Backing up reader data...", Toast.LENGTH_SHORT).show()
                         coroutineScope.launch {
-                            val res = BackupHelper.backupData(context, false)
+                            val res = BackupHelper.backupData(context, includeBooks = false, includePrefs = false)
                             if (res.isSuccess) {
                                 Toast.makeText(context, "Backup saved: ${java.io.File(res.getOrNull() ?: "").name}", Toast.LENGTH_SHORT).show()
                             } else {
@@ -293,11 +314,12 @@ fun ReaderSettingsScreen(onBack: () -> Unit) {
                 )
                 Divider()
                 ListItem(
-                    headlineContent = { Text("Backup Data (Full)") },
+                    headlineContent = { Text("Backup Reader Data (With Books)") },
+                    supportingContent = { Text("Database, settings, and downloaded books") },
                     modifier = Modifier.clickable {
-                        Toast.makeText(context, "Backing up full data...", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Backing up reader data with books...", Toast.LENGTH_SHORT).show()
                         coroutineScope.launch {
-                            val res = BackupHelper.backupData(context, true)
+                            val res = BackupHelper.backupData(context, includeBooks = true, includePrefs = false)
                             if (res.isSuccess) {
                                 Toast.makeText(context, "Backup saved: ${java.io.File(res.getOrNull() ?: "").name}", Toast.LENGTH_SHORT).show()
                             } else {
@@ -308,7 +330,7 @@ fun ReaderSettingsScreen(onBack: () -> Unit) {
                 )
                 Divider()
                 ListItem(
-                    headlineContent = { Text("Import Backup") },
+                    headlineContent = { Text("Import Reader Backup") },
                     modifier = Modifier.clickable {
                         importLauncher.launch("application/zip")
                     }
@@ -471,6 +493,68 @@ fun GeneralSettingsScreen(onBack: () -> Unit) {
                         // Placeholder
                     }
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DataSettingsScreen(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) {
+            Toast.makeText(context, "Importing full app data...", Toast.LENGTH_SHORT).show()
+            coroutineScope.launch {
+                val res = BackupHelper.importData(context, uri)
+                if (res.isSuccess) {
+                    Toast.makeText(context, "Import successful. Please restart the app.", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "Import failed", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text("Data & Backup") },
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                }
+            }
+        )
+        LazyColumn(modifier = Modifier.fillMaxSize()) {
+            item {
+                ListItem(
+                    headlineContent = { Text("Backup Full App Data") },
+                    supportingContent = { Text("Includes everything: reader data, sidebar structure, and all settings.") },
+                    modifier = Modifier.clickable {
+                        Toast.makeText(context, "Backing up full app data...", Toast.LENGTH_SHORT).show()
+                        coroutineScope.launch {
+                            val res = BackupHelper.backupData(context, includeBooks = true, includePrefs = true)
+                            if (res.isSuccess) {
+                                Toast.makeText(context, "Backup saved: ${java.io.File(res.getOrNull() ?: "").name}", Toast.LENGTH_SHORT).show()
+                            } else {
+                                Toast.makeText(context, "Backup failed", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Import Full App Data") },
+                    supportingContent = { Text("Restore a previously backed-up full app data zip.") },
+                    modifier = Modifier.clickable {
+                        importLauncher.launch("application/zip")
+                    }
+                )
+                Divider()
             }
         }
     }

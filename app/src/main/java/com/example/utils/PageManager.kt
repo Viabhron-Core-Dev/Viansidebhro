@@ -1,0 +1,79 @@
+package com.example.utils
+
+import android.content.Context
+import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
+import java.util.UUID
+
+data class SidebarPage(
+    val id: String,
+    val type: String,
+    var title: String,
+    var gridColumns: Int = 3,
+    var gridWrapContent: Boolean = true,
+    var stickAlignment: String = "bottom"
+) {
+    fun toJson(): JSONObject {
+        val obj = JSONObject()
+        obj.put("id", id)
+        obj.put("type", type)
+        obj.put("title", title)
+        obj.put("gridColumns", gridColumns)
+        obj.put("gridWrapContent", gridWrapContent)
+        obj.put("stickAlignment", stickAlignment)
+        return obj
+    }
+
+    companion object {
+        fun fromJson(obj: JSONObject): SidebarPage {
+            return SidebarPage(
+                id = obj.getString("id"),
+                type = obj.getString("type"),
+                title = obj.getString("title"),
+                gridColumns = obj.optInt("gridColumns", 3),
+                gridWrapContent = obj.optBoolean("gridWrapContent", true),
+                stickAlignment = obj.optString("stickAlignment", "bottom")
+            )
+        }
+    }
+}
+
+object PageManager {
+    fun getPages(prefs: SharedPreferences): List<SidebarPage> {
+        val pagesJson = prefs.getString("sidebar_pages", null)
+        if (pagesJson == null) {
+            // Default setup
+            return listOf(
+                SidebarPage(id = UUID.randomUUID().toString(), type = "apps", title = "Apps Grid")
+            )
+        }
+        val list = mutableListOf<SidebarPage>()
+        try {
+            val arr = JSONArray(pagesJson)
+            for (i in 0 until arr.length()) {
+                list.add(SidebarPage.fromJson(arr.getJSONObject(i)))
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return listOf(
+                SidebarPage(id = UUID.randomUUID().toString(), type = "apps", title = "Apps Grid")
+            )
+        }
+        return list
+    }
+
+    fun savePages(prefs: SharedPreferences, pages: List<SidebarPage>) {
+        val arr = JSONArray()
+        pages.forEach { arr.put(it.toJson()) }
+        prefs.edit().putString("sidebar_pages", arr.toString()).apply()
+    }
+
+    fun getDefaultPageIndex(prefs: SharedPreferences): Int {
+        return prefs.getInt("sidebar_default_page_index", 0)
+    }
+
+    fun saveDefaultPageIndex(prefs: SharedPreferences, index: Int) {
+        prefs.edit().putInt("sidebar_default_page_index", index).apply()
+    }
+}

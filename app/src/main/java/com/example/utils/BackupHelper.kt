@@ -16,10 +16,10 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
 object BackupHelper {
-    suspend fun backupData(context: Context, includeBooks: Boolean): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun backupData(context: Context, includeBooks: Boolean, includePrefs: Boolean): Result<String> = withContext(Dispatchers.IO) {
         try {
             val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-            val suffix = if (includeBooks) "Full" else "NoBooks"
+            val suffix = if (includePrefs) "FullApp" else if (includeBooks) "ReaderFull" else "ReaderNoBooks"
             val fileName = "LiteReader_Backup_${suffix}_$timestamp.zip"
             
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
@@ -42,11 +42,13 @@ object BackupHelper {
                 }
                 
                 // Backup Shared Prefs
-                val prefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
-                if (prefsDir.exists()) {
-                    prefsDir.listFiles()?.forEach { file ->
-                        if (file.isFile) {
-                            addFileToZip(file, "shared_prefs/${file.name}", zos)
+                if (includePrefs) {
+                    val prefsDir = File(context.applicationInfo.dataDir, "shared_prefs")
+                    if (prefsDir.exists()) {
+                        prefsDir.listFiles()?.forEach { file ->
+                            if (file.isFile) {
+                                addFileToZip(file, "shared_prefs/${file.name}", zos)
+                            }
                         }
                     }
                 }

@@ -25,6 +25,7 @@ import java.util.Locale
 import kotlin.math.max
 import androidx.documentfile.provider.DocumentFile
 import android.net.Uri
+import com.example.utils.PageManager
 
 class FloatingReaderService : Service() {
     private lateinit var windowManager: WindowManager
@@ -133,7 +134,8 @@ class FloatingReaderService : Service() {
     private var triggerHandleView: TriggerHandleView? = null
     private var readerHandleView: ReaderHandleView? = null
     private var sidebarView: SidebarView? = null
-    private var defaultSidebarPage: View? = null
+    private var sidebarPagesList = mutableListOf<View>()
+    private var sidebarDefaultIndex = 0
     private lateinit var appsManager: SidebarAppsManager
     private var appsPageView: AppsPageView? = null
     private var appPickerOverlayView: AppPickerOverlayView? = null
@@ -230,7 +232,7 @@ class FloatingReaderService : Service() {
             }
         )
         
-        defaultSidebarPage = appsPageView
+        rebuildSidebarPages()
         appsManager.ensureLoaded()
 
         triggerHandleView = TriggerHandleView(this, prefs, windowManager) {
@@ -430,14 +432,45 @@ class FloatingReaderService : Service() {
         return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
     }
     
+    private fun rebuildSidebarPages() {
+        val pageConfigs = PageManager.getPages(prefs)
+        sidebarDefaultIndex = PageManager.getDefaultPageIndex(prefs)
+        sidebarPagesList.clear()
+        
+        pageConfigs.forEach { config ->
+            val pageView = when (config.type) {
+                "apps" -> appsPageView!!
+                "scheduler" -> SchedulerPageView(this, serviceScope)
+                "calculator" -> CalculatorPageView(this)
+                "compass" -> CompassPageView(this)
+                else -> {
+                    TextView(this).apply {
+                        text = "${config.title} coming soon..."
+                        setTextColor(Color.WHITE)
+                        gravity = Gravity.CENTER
+                        textSize = 16f
+                    }
+                }
+            }
+            sidebarPagesList.add(pageView)
+        }
+        
+        // Ensure index is valid
+        if (sidebarDefaultIndex >= sidebarPagesList.size) {
+            sidebarDefaultIndex = 0
+        }
+    }
+    
     private fun showSidebar() {
         if (sidebarView == null) {
-            sidebarView = SidebarView(this, prefs, windowManager, defaultSidebarPage!!,
+            rebuildSidebarPages()
+            sidebarView = SidebarView(this, prefs, windowManager, sidebarPagesList, sidebarDefaultIndex,
                 onAddClicked = { showAddElementOverlay() },
                 onClose = { sidebarView?.detach() }
             )
-            if (defaultSidebarPage is AppsPageView) {
-                sidebarView?.updateHeight((defaultSidebarPage as AppsPageView).getCurrentHeightPx())
+            val defaultPage = sidebarPagesList[sidebarDefaultIndex]
+            if (defaultPage is AppsPageView) {
+                sidebarView?.updateHeight((defaultPage).getCurrentHeightPx())
             }
         }
         sidebarView?.attach()
@@ -2481,7 +2514,7 @@ class FloatingReaderService : Service() {
         instance = null
         sidebarView?.detach()
         sidebarView = null
-        defaultSidebarPage = null
+        sidebarPagesList.clear()
         appPickerOverlayView?.detach()
         appPickerOverlayView = null
         addElementOverlayView?.detach()
