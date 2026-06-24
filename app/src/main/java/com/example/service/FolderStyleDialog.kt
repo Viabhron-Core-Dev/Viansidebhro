@@ -15,7 +15,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 
-fun showFolderStyleDialog(context: Context, item: SidebarItem.Folder, manager: SidebarAppsManager) {
+fun showFolderStyleDialog(context: Context, item: SidebarItem.Folder, manager: SidebarAppsManager, onStyleSelected: ((Int) -> Unit)? = null) {
     val layout = LinearLayout(context).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(40, 40, 40, 40)
@@ -62,7 +62,10 @@ fun showFolderStyleDialog(context: Context, item: SidebarItem.Folder, manager: S
 
             val iv = ImageView(context).apply {
                 layoutParams = LinearLayout.LayoutParams(size, size)
-                setImageDrawable(FolderStyleDrawable(position, Color.parseColor("#00BFA5"), Color.parseColor("#333333")))
+                val miniIcons = item.items.mapNotNull { 
+                    if (it.startsWith("app:")) manager.iconCache.get(it.substringAfter("app:")) else null 
+                }.take(4)
+                setImageDrawable(FolderStyleDrawable(position, Color.parseColor("#00BFA5"), Color.parseColor("#333333"), miniIcons))
             }
             view.addView(iv)
 
@@ -91,16 +94,20 @@ fun showFolderStyleDialog(context: Context, item: SidebarItem.Folder, manager: S
         .create()
 
     gridView.setOnItemClickListener { _, _, position, _ ->
-        val json = org.json.JSONObject().apply {
-            put("name", item.name)
-            put("colorHex", item.colorHex)
-            val jArr = org.json.JSONArray()
-            item.items.forEach { jArr.put(it) }
-            put("items", jArr)
-            put("folderStyle", position)
+        if (onStyleSelected != null) {
+            onStyleSelected(position)
+        } else {
+            val json = org.json.JSONObject().apply {
+                put("name", item.name)
+                put("colorHex", item.colorHex)
+                val jArr = org.json.JSONArray()
+                item.items.forEach { jArr.put(it) }
+                put("items", jArr)
+                put("folderStyle", position)
+            }
+            manager.removeItem(item.id)
+            manager.addItem("folder:${item.uuid}:$json")
         }
-        manager.removeItem(item.id)
-        manager.addItem("folder:${item.uuid}:$json")
         dialog.dismiss()
     }
 
@@ -111,10 +118,12 @@ fun showFolderStyleDialog(context: Context, item: SidebarItem.Folder, manager: S
 class FolderStyleDrawable(
     private val styleIndex: Int,
     private val themeColor: Int,
-    private val iconColor: Int
+    private val iconColor: Int,
+    private val miniIcons: List<Bitmap> = emptyList()
 ) : Drawable() {
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val iconPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { isFilterBitmap = true }
     
     override fun draw(canvas: Canvas) {
         val w = bounds.width().toFloat()
@@ -169,6 +178,8 @@ class FolderStyleDrawable(
         path.lineTo(x + size, y + size)
         path.close()
         canvas.drawPath(path, paint)
+        
+        drawMiniIconsInGrid(canvas, x + size * 0.1f, y + size * 0.3f, size * 0.8f, size * 0.6f)
     }
     
     private fun drawStack(canvas: Canvas, x: Float, y: Float, size: Float, color: Int) {
@@ -187,22 +198,56 @@ class FolderStyleDrawable(
         paint.color = color
         val gap = size * 0.1f
         val ts = (size - gap) / 2f
-        for (i in 0..1) {
-            for (j in 0..1) {
-                val tx = x + j * (ts + gap)
-                val ty = y + i * (ts + gap)
-                val tw = if (i == 0 && j == 1) ts * 0.6f else ts
-                val tw2 = if (i == 1 && j == 1) ts * 0.8f else tw
-                canvas.drawRoundRect(RectF(tx, ty, tx + tw2, ty + ts), ts/4, ts/4, paint)
+        
+        // Draw tiles or mini icons
+        if (miniIcons.isNotEmpty()) {
+            for (i in 0..1) {
+                for (j in 0..1) {
+                    val index = i * 2 + j
+                    val tx = x + j * (ts + gap)
+                    val ty = y + i * (ts + gap)
+                    if (index < miniIcons.size) {
+                        canvas.drawBitmap(miniIcons[index], null, RectF(tx, ty, tx + ts, ty + ts), iconPaint)
+                    } else {
+                        canvas.drawRoundRect(RectF(tx, ty, tx + ts, ty + ts), ts/4, ts/4, paint)
+                    }
+                }
+            }
+        } else {
+            for (i in 0..1) {
+                for (j in 0..1) {
+                    val tx = x + j * (ts + gap)
+                    val ty = y + i * (ts + gap)
+                    val tw = if (i == 0 && j == 1) ts * 0.6f else ts
+                    val tw2 = if (i == 1 && j == 1) ts * 0.8f else tw
+                    canvas.drawRoundRect(RectF(tx, ty, tx + tw2, ty + ts), ts/4, ts/4, paint)
+                }
             }
         }
     }
     
     private fun drawActionFolder(canvas: Canvas, x: Float, y: Float, size: Float, color: Int, iconColor: Int) {
         drawStack(canvas, x, y, size, color)
-        // Redraw over right half
         val fs = size * 0.5f
         drawFolder(canvas, x + size - fs, y + size - fs, fs, iconColor)
+    }
+
+    private fun drawMiniIconsInGrid(canvas: Canvas, x: Float, y: Float, w: Float, h: Float) {
+        if (miniIcons.isEmpty()) return
+        val cols = 2
+        val rows = 2
+        val padding = w * 0.05f
+        val iconW = (w - padding * (cols + 1)) / cols
+        val iconH = (h - padding * (rows + 1)) / rows
+        val size = minOf(iconW, iconH)
+        
+        for (i in 0 until minOf(4, miniIcons.size)) {
+            val row = i / cols
+            val col = i % cols
+            val ix = x + padding + col * (size + padding)
+            val iy = y + padding + row * (size + padding)
+            canvas.drawBitmap(miniIcons[i], null, RectF(ix, iy, ix + size, iy + size), iconPaint)
+        }
     }
 
     override fun setAlpha(alpha: Int) {}

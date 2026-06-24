@@ -35,6 +35,13 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
     val gestureKeys = listOf("tap", "double_tap", "long_press", "swipe_up", "swipe_down", "swipe_left", "swipe_right")
     val gesturesMap = remember { mutableStateMapOf<String, String>() }
     
+    DisposableEffect(Unit) {
+        prefs.edit().putBoolean("is_handle_edit_mode", true).apply()
+        onDispose {
+            prefs.edit().putBoolean("is_handle_edit_mode", false).apply()
+        }
+    }
+    
     LaunchedEffect(Unit) {
         gestureKeys.forEach { key ->
             val action = prefs.getString("${prefix}$key", "none") ?: "none"

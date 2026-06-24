@@ -195,7 +195,11 @@ class AppsPageView(
                     refreshList()
                 } else if (item is SidebarItem.Link) {
                     try {
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(item.url))
+                        val intent = if (item.url.startsWith("intent:")) {
+                            android.content.Intent.parseUri(item.url, android.content.Intent.URI_INTENT_SCHEME)
+                        } else {
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(item.url))
+                        }
                         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                         context.startActivity(intent)
                     } catch (e: Exception) {
@@ -437,7 +441,10 @@ class AppsPageView(
                 val cHex = try { android.graphics.Color.parseColor(item.colorHex) } catch(e:Exception){ android.graphics.Color.parseColor("#00BFA5") }
                 val iconC = android.graphics.Color.WHITE
                 
-                icon.setImageDrawable(FolderStyleDrawable(item.folderStyle, cHex, iconC))
+                val miniIcons = item.items.mapNotNull { 
+                    if (it.startsWith("app:")) manager.iconCache.get(it.substringAfter("app:")) else null 
+                }.take(4)
+                icon.setImageDrawable(FolderStyleDrawable(item.folderStyle, cHex, iconC, miniIcons))
             } else if (item is SidebarItem.Link) {
                 icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 icon.setImageResource(android.R.drawable.ic_menu_set_as) // Generic link icon

@@ -141,6 +141,14 @@ class SidebarView(
             }
         }
         
+        val isLooping = pages.size > 2
+        val startingIndex = if (isLooping) {
+            val half = Int.MAX_VALUE / 2
+            half - (half % pages.size) + defaultPageIndex
+        } else {
+            defaultPageIndex
+        }
+
         viewPager.adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
                 val frame = FrameLayout(parent.context).apply {
@@ -151,13 +159,15 @@ class SidebarView(
             override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
                 val frame = holder.itemView as FrameLayout
                 frame.removeAllViews()
-                val pageView = pages[position]
+                if (pages.isEmpty()) return
+                val actualPos = position % pages.size
+                val pageView = pages[actualPos]
                 if (pageView.parent != null) {
                     (pageView.parent as ViewGroup).removeView(pageView)
                 }
                 frame.addView(pageView)
             }
-            override fun getItemCount() = pages.size
+            override fun getItemCount() = if (isLooping) Int.MAX_VALUE else pages.size
         }
         
         dotsLayout = LinearLayout(context).apply {
@@ -169,11 +179,19 @@ class SidebarView(
         }
         
         setupDots(pages.size)
-        viewPager.setCurrentItem(defaultPageIndex, false)
-        updateDots(defaultPageIndex)
+        viewPager.setCurrentItem(startingIndex, false)
+        updateDots(startingIndex % pages.size)
         viewPager.registerOnPageChangeCallback(object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {
-                updateDots(position)
+                val actualPos = position % pages.size
+                updateDots(actualPos)
+                val page = pages.getOrNull(actualPos)
+                if (page is AppsPageView) {
+                    updateHeight(page.getCurrentHeightPx())
+                } else if (page != null) {
+                    val density = context.resources.displayMetrics.density
+                    updateHeight((450 * density).toInt())
+                }
             }
         })
         
@@ -259,8 +277,25 @@ class SidebarView(
     }
     
     fun goToPage(index: Int) {
-        if (index in 0 until (viewPager.adapter?.itemCount ?: 0)) {
-            viewPager.setCurrentItem(index, true)
+        if (pages.isEmpty()) return
+        val isLooping = pages.size > 2
+        if (isLooping) {
+            val current = viewPager.currentItem
+            val currentActual = current % pages.size
+            var diff = index - currentActual
+            // take shortest path
+            if (diff > pages.size / 2) diff -= pages.size
+            if (diff < -pages.size / 2) diff += pages.size
+            viewPager.setCurrentItem(current + diff, true)
+        } else {
+            if (index in 0 until pages.size) {
+                viewPager.setCurrentItem(index, true)
+            }
         }
+    }
+
+    fun getCurrentPageIndex(): Int {
+        if (pages.isEmpty()) return 0
+        return viewPager.currentItem % pages.size
     }
 }

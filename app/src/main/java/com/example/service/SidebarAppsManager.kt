@@ -410,9 +410,52 @@ class SidebarAppsManager(
             for (i in 0 until current.length()) {
                 var item = current.getString(i)
                 if (!item.contains(":")) item = "app:$item"
-                if (item != id) {
+                
+                val itemId = if (item.startsWith("folder:") || item.startsWith("link:") || item.startsWith("spacer:")) {
+                    val parts = item.split(":", limit = 3)
+                    if (parts.size >= 2) "${parts[0]}:${parts[1]}" else item
+                } else {
+                    item
+                }
+                
+                val targetId = if (id.startsWith("folder:") || id.startsWith("link:") || id.startsWith("spacer:")) {
+                    val parts = id.split(":", limit = 3)
+                    if (parts.size >= 2) "${parts[0]}:${parts[1]}" else id
+                } else {
+                    id
+                }
+
+                if (itemId != targetId) {
                     newArray.put(item)
                 }
+            }
+            prefs.edit().putString("sidebar_apps", newArray.toString()).apply()
+            loadActiveApps()
+            withContext(Dispatchers.Main) {
+                onAppsUpdated()
+            }
+        }
+    }
+
+    fun addItemToFolder(folderUuid: String, itemId: String) {
+        coroutineScope.launch(Dispatchers.IO) {
+            val currentStr = prefs.getString("sidebar_apps", """["system:log_keeper", "system:ebook_reader", "system:settings"]""") ?: return@launch
+            val current = JSONArray(currentStr)
+            val newArray = JSONArray()
+            for (i in 0 until current.length()) {
+                var item = current.getString(i)
+                if (item.startsWith("folder:$folderUuid:")) {
+                    try {
+                        val parts = item.split(":", limit = 3)
+                        val folderDataStr = parts[2]
+                        val obj = org.json.JSONObject(folderDataStr)
+                        val itemsArr = obj.optJSONArray("items") ?: org.json.JSONArray()
+                        itemsArr.put(itemId)
+                        obj.put("items", itemsArr)
+                        item = "folder:$folderUuid:${obj.toString()}"
+                    } catch (e: Exception) {}
+                }
+                newArray.put(item)
             }
             prefs.edit().putString("sidebar_apps", newArray.toString()).apply()
             loadActiveApps()

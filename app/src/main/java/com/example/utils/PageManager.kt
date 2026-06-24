@@ -42,11 +42,10 @@ data class SidebarPage(
 object PageManager {
     fun getPages(prefs: SharedPreferences): List<SidebarPage> {
         val pagesJson = prefs.getString("sidebar_pages", null)
+        val defaultAppsPage = SidebarPage(id = "default_apps", type = "apps", title = "Apps Grid")
         if (pagesJson == null) {
             // Default setup
-            return listOf(
-                SidebarPage(id = UUID.randomUUID().toString(), type = "apps", title = "Apps Grid")
-            )
+            return listOf(defaultAppsPage)
         }
         val list = mutableListOf<SidebarPage>()
         try {
@@ -56,10 +55,17 @@ object PageManager {
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            return listOf(
-                SidebarPage(id = UUID.randomUUID().toString(), type = "apps", title = "Apps Grid")
-            )
+            return listOf(defaultAppsPage)
         }
+        
+        // Ensure first page is always Apps Grid
+        if (list.isEmpty()) {
+            list.add(defaultAppsPage)
+        } else if (list[0].id != "default_apps") {
+            list.removeAll { it.id == "default_apps" }
+            list.add(0, defaultAppsPage)
+        }
+        
         return list
     }
 

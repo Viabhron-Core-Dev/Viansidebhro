@@ -140,7 +140,8 @@ class TriggerHandleView(
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dy = event.rawY - initialTouchY
-                    if (abs(dy) > clickSlop) {
+                    val isEditMode = prefs.getBoolean("is_handle_edit_mode", false)
+                    if (isEditMode && abs(dy) > clickSlop) {
                         isDragging = true
                         layoutParams.y = initialY + dy.toInt()
                         windowManager.updateViewLayout(this, layoutParams)

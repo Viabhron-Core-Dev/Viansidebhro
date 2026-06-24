@@ -39,8 +39,9 @@ class AddElementOverlayView(
     context: Context,
     private val manager: SidebarAppsManager,
     private val windowManager: WindowManager,
+    private val targetFolderUuid: String? = null,
     private val onClose: () -> Unit,
-    private val onAppSelected: () -> Unit
+    private val onAppSelected: (String?) -> Unit
 ) : FrameLayout(context) {
 
     private val layoutParams: WindowManager.LayoutParams
@@ -157,10 +158,18 @@ class AddElementOverlayView(
         adapter.notifyDataSetChanged()
     }
 
+    private fun addSidebarItem(itemId: String) {
+        if (targetFolderUuid != null) {
+            manager.addItemToFolder(targetFolderUuid, itemId)
+        } else {
+            manager.addItem(itemId)
+        }
+    }
+
     private fun handleActionClick(item: AddElementItem.Action) {
         when (item.type) {
             ActionType.APP -> {
-                onAppSelected()
+                onAppSelected(targetFolderUuid)
             }
             ActionType.SYSTEM -> {
                 currentMode = Mode.SYSTEM_ACTIONS
@@ -183,7 +192,7 @@ class AddElementOverlayView(
                 updateHeaderTitle("Display")
             }
             ActionType.SPECIFIC_SYSTEM_ACTION -> {
-                manager.addItem(item.id)
+                addSidebarItem(item.id)
                 close()
             }
             ActionType.FOLDER -> {
@@ -195,13 +204,54 @@ class AddElementOverlayView(
                         val name = et.text.toString().ifEmpty { "New Folder" }
                         val uuid = java.util.UUID.randomUUID().toString()
                         val color = "#FF5722" // default color
-                        val json = org.json.JSONObject().apply {
-                            put("name", name)
-                            put("colorHex", color)
-                            put("items", org.json.JSONArray())
+                        
+                        // Show style dialog immediately!
+                        val dummyFolder = SidebarItem.Folder(uuid, name, color, emptyList(), 0)
+                        showFolderStyleDialog(context, dummyFolder, manager) { styleIndex ->
+                            val json = org.json.JSONObject().apply {
+                                put("name", name)
+                                put("colorHex", color)
+                                put("items", org.json.JSONArray())
+                                put("folderStyle", styleIndex)
+                            }
+                            addSidebarItem("folder:$uuid:$json")
+                            close()
+                            // Note: we should show the add element overlay for this folder right away,
+                            // but the caller of AddElementOverlayView should ideally handle it, or we can broadcast it.
+                            // For simplicity, we can restart AddElementOverlayView with this folder ID.
+                            val svc = (context as? FloatingReaderService)
+                            svc?.showAddElementOverlay(uuid)
                         }
-                        manager.addItem("folder:$uuid:$json")
-                        close()
+                    }
+                    .setNegativeButton("Cancel", null)
+                    .create()
+                dialog.window?.setType(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE)
+                dialog.show()
+            }
+            ActionType.SHORTCUT -> {
+                val layout = android.widget.LinearLayout(context).apply {
+                    orientation = android.widget.LinearLayout.VERTICAL
+                    setPadding(50, 20, 50, 20)
+                }
+                val labelEt = android.widget.EditText(context).apply { hint = "Label" }
+                val intentEt = android.widget.EditText(context).apply { hint = "Intent URI (e.g. intent:#Intent;...)" }
+                layout.addView(labelEt)
+                layout.addView(intentEt)
+                val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+                    .setTitle("New Shortcut")
+                    .setView(layout)
+                    .setPositiveButton("Add") { _, _ ->
+                        val url = intentEt.text.toString()
+                        val label = labelEt.text.toString().ifEmpty { "Shortcut" }
+                        if (url.isNotBlank()) {
+                            val uuid = java.util.UUID.randomUUID().toString()
+                            val json = org.json.JSONObject().apply {
+                                put("label", label)
+                                put("url", url)
+                            }
+                            addSidebarItem("link:$uuid:$json")
+                            close()
+                        }
                     }
                     .setNegativeButton("Cancel", null)
                     .create()
@@ -229,7 +279,7 @@ class AddElementOverlayView(
                             put("label", label)
                             put("url", url)
                         }
-                        manager.addItem("link:$uuid:$json")
+                        addSidebarItem("link:$uuid:$json")
                         close()
                     }
                     .setNegativeButton("Cancel", null)
@@ -254,7 +304,7 @@ class AddElementOverlayView(
                         val json = org.json.JSONObject().apply {
                             put("heightDp", height)
                         }
-                        manager.addItem("spacer:$uuid:$json")
+                        addSidebarItem("spacer:$uuid:$json")
                         close()
                     }
                     .setNegativeButton("Cancel", null)

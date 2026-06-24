@@ -71,7 +71,7 @@ fun PageManagementSettingsScreen(onBack: () -> Unit) {
                     trailingContent = {
                         Row {
                             IconButton(onClick = {
-                                if (index > 0) {
+                                if (index > 1) { // 1 instead of 0 to protect index 0
                                     val newPages = pages.toMutableList()
                                     val temp = newPages[index]
                                     newPages[index] = newPages[index - 1]
@@ -81,11 +81,11 @@ fun PageManagementSettingsScreen(onBack: () -> Unit) {
                                     pages = newPages
                                     savePages()
                                 }
-                            }, enabled = index > 0) {
+                            }, enabled = index > 1) {
                                 Icon(Icons.Default.ArrowUpward, "Move Up")
                             }
                             IconButton(onClick = {
-                                if (index < pages.size - 1) {
+                                if (index > 0 && index < pages.size - 1) {
                                     val newPages = pages.toMutableList()
                                     val temp = newPages[index]
                                     newPages[index] = newPages[index + 1]
@@ -95,11 +95,11 @@ fun PageManagementSettingsScreen(onBack: () -> Unit) {
                                     pages = newPages
                                     savePages()
                                 }
-                            }, enabled = index < pages.size - 1) {
+                            }, enabled = index > 0 && index < pages.size - 1) {
                                 Icon(Icons.Default.ArrowDownward, "Move Down")
                             }
                             IconButton(onClick = {
-                                if (pages.size > 1) {
+                                if (index > 0 && pages.size > 1) {
                                     val newPages = pages.toMutableList()
                                     newPages.removeAt(index)
                                     if (defaultIndex == index) defaultIndex = 0
@@ -107,7 +107,7 @@ fun PageManagementSettingsScreen(onBack: () -> Unit) {
                                     pages = newPages
                                     savePages()
                                 }
-                            }, enabled = pages.size > 1) {
+                            }, enabled = index > 0 && pages.size > 1) {
                                 Icon(Icons.Default.Delete, "Delete")
                             }
                         }

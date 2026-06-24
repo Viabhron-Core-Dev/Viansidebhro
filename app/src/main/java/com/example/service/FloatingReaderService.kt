@@ -93,6 +93,14 @@ class FloatingReaderService : Service() {
             "handle_reader_y", "handle_reader_width", "handle_reader_height", "handle_reader_color", "handle_reader_shape" -> {
                 readerHandleView?.updatePosition()
             }
+            "sidebar_pages", "sidebar_default_page_index" -> {
+                val wasAttached = sidebarView?.windowToken != null
+                sidebarView?.detach()
+                sidebarView = null
+                if (wasAttached) {
+                    showSidebar()
+                }
+            }
             "reader_handle_enabled" -> {
                 if (sharedPreferences.getBoolean("reader_handle_enabled", false)) {
                     readerHandleView?.attach()
@@ -143,9 +151,9 @@ class FloatingReaderService : Service() {
     private var sidebarPagesList = mutableListOf<View>()
     private var sidebarDefaultIndex = 0
     private lateinit var appsManager: SidebarAppsManager
-    private var appsPageView: AppsPageView? = null
     private var appPickerOverlayView: AppPickerOverlayView? = null
     private var addElementOverlayView: AddElementOverlayView? = null
+    private var sidebarEditOverlayView: SidebarEditOverlayView? = null
     
     private var netSpeedManager: NetSpeedManager? = null
     private var screenStateReceiver: android.content.BroadcastReceiver? = null
@@ -183,6 +191,8 @@ class FloatingReaderService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        
+        prefs.edit().putBoolean("is_handle_edit_mode", false).apply()
 
         // Start Foreground Service
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -228,15 +238,8 @@ class FloatingReaderService : Service() {
         setupFloatingView()
 
         appsManager = SidebarAppsManager(this, prefs, serviceScope) {
-            appsPageView?.updateData(appsManager.activeItems)
+            appsPageViews.forEach { it.updateData(appsManager.activeItems) }
         }
-
-        appsPageView = AppsPageView(this, appsManager, serviceScope,
-            onCloseSidebar = { sidebarView?.detach() },
-            onHeightChanged = { newHeight ->
-                sidebarView?.updateHeight(newHeight)
-            }
-        )
         
         rebuildSidebarPages()
         appsManager.ensureLoaded()
@@ -443,14 +446,31 @@ class FloatingReaderService : Service() {
         return androidx.core.graphics.drawable.IconCompat.createWithBitmap(bitmap)
     }
     
+    private val appsPageViews = mutableListOf<AppsPageView>()
+
     private fun rebuildSidebarPages() {
         val pageConfigs = PageManager.getPages(prefs)
         sidebarDefaultIndex = PageManager.getDefaultPageIndex(prefs)
         sidebarPagesList.clear()
+        appsPageViews.clear()
         
         pageConfigs.forEach { config ->
             val pageView = when (config.type) {
-                "apps" -> appsPageView!!
+                "apps" -> {
+                    var p: AppsPageView? = null
+                    p = AppsPageView(this, appsManager, serviceScope,
+                        onCloseSidebar = { sidebarView?.detach() },
+                        onHeightChanged = { newHeight ->
+                            // Only update height if this is the currently selected page
+                            if (sidebarView != null && p != null && sidebarPagesList.indexOf(p!!) == sidebarView!!.getCurrentPageIndex()) {
+                                sidebarView?.updateHeight(newHeight)
+                            }
+                        }
+                    )
+                    p.updateData(appsManager.activeItems)
+                    appsPageViews.add(p)
+                    p
+                }
                 "scheduler" -> SchedulerPageView(this, serviceScope)
                 "calculator" -> CalculatorPageView(this)
                 "compass" -> CompassPageView(this)
@@ -476,12 +496,15 @@ class FloatingReaderService : Service() {
         if (sidebarView == null) {
             rebuildSidebarPages()
             sidebarView = SidebarView(this, prefs, windowManager, sidebarPagesList, sidebarDefaultIndex,
-                onAddClicked = { showAddElementOverlay() },
+                onAddClicked = { showSidebarEditOverlay() },
                 onClose = { sidebarView?.detach() }
             )
             val defaultPage = sidebarPagesList.getOrNull(sidebarDefaultIndex)
             if (defaultPage is AppsPageView) {
                 sidebarView?.updateHeight((defaultPage).getCurrentHeightPx())
+            } else if (defaultPage != null) {
+                val density = resources.displayMetrics.density
+                sidebarView?.updateHeight((450 * density).toInt())
             }
         }
         sidebarView?.attach()
@@ -496,25 +519,33 @@ class FloatingReaderService : Service() {
         }
     }
 
-    private fun showAddElementOverlay() {
-        if (addElementOverlayView == null) {
-            addElementOverlayView = AddElementOverlayView(
-                this, appsManager, windowManager,
-                onClose = { addElementOverlayView?.detach() },
-                onAppSelected = { 
-                    addElementOverlayView?.detach()
-                    showAppPicker() 
-                }
-            )
-        }
+    fun showSidebarEditOverlay() {
+        sidebarEditOverlayView?.detach()
+        sidebarEditOverlayView = SidebarEditOverlayView(
+            this, appsManager, windowManager,
+            onAddClicked = { showAddElementOverlay(null) },
+            onClose = { sidebarEditOverlayView?.detach() }
+        )
+        sidebarEditOverlayView?.attach()
+    }
+
+    fun showAddElementOverlay(targetFolderUuid: String? = null) {
+        addElementOverlayView?.detach()
+        addElementOverlayView = AddElementOverlayView(
+            this, appsManager, windowManager, targetFolderUuid,
+            onClose = { addElementOverlayView?.detach() },
+            onAppSelected = { folderUuid -> 
+                addElementOverlayView?.detach()
+                showAppPicker(folderUuid) 
+            }
+        )
         addElementOverlayView?.attach()
     }
 
-    private fun showAppPicker() {
-        if (appPickerOverlayView == null) {
-            appPickerOverlayView = AppPickerOverlayView(this, appsManager, serviceScope, windowManager) {
-                appPickerOverlayView?.detach()
-            }
+    private fun showAppPicker(targetFolderUuid: String? = null) {
+        appPickerOverlayView?.detach()
+        appPickerOverlayView = AppPickerOverlayView(this, appsManager, serviceScope, windowManager, targetFolderUuid) {
+            appPickerOverlayView?.detach()
         }
         appPickerOverlayView?.attach()
     }
@@ -2551,7 +2582,7 @@ class FloatingReaderService : Service() {
         appPickerOverlayView = null
         addElementOverlayView?.detach()
         addElementOverlayView = null
-        appsPageView = null
+        appsPageViews.clear()
         if (::appsManager.isInitialized) {
             appsManager.destroy()
         }

@@ -29,6 +29,7 @@ class AppPickerOverlayView(
     private val manager: SidebarAppsManager,
     private val serviceScope: CoroutineScope,
     private val windowManager: WindowManager,
+    private val targetFolderUuid: String? = null,
     private val onClose: () -> Unit
 ) : FrameLayout(context) {
 
@@ -141,7 +142,11 @@ class AppPickerOverlayView(
             icon.setImageDrawable(null)
             
             itemView.setOnClickListener {
-                manager.addItem("app:${appInfo.packageName}")
+                if (targetFolderUuid != null) {
+                    manager.addItemToFolder(targetFolderUuid, "app:${appInfo.packageName}")
+                } else {
+                    manager.addItem("app:${appInfo.packageName}")
+                }
                 close()
             }
 
