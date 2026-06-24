@@ -249,18 +249,22 @@ class FloatingReaderService : Service() {
 
         readerHandleView = ReaderHandleView(this, prefs, windowManager) {
             android.util.Log.d("VianSide", "reader trigger tapped")
-            if (isFolded) {
-                val lastBook = prefs.getInt("last_book_id", -1)
-                if (currentBook == null && lastBook != -1) loadBook(lastBook)
-                setFolded(false)
-            } else {
-                setFolded(true)
-            }
+            toggleReader()
         }
         readerHandleView?.attach()
         
         setupNetSpeed()
         updatePersistentNotification()
+    }
+    
+    fun toggleReader() {
+        if (isFolded) {
+            val lastBook = prefs.getInt("last_book_id", -1)
+            if (currentBook == null && lastBook != -1) loadBook(lastBook)
+            setFolded(false)
+        } else {
+            setFolded(true)
+        }
     }
     
     private fun setupNetSpeed() {

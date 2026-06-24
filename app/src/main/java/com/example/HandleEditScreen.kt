@@ -1,13 +1,17 @@
 package com.example
 
 import android.content.Context
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -27,32 +31,31 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
     var colorHex by remember { mutableStateOf(prefs.getString("${prefix}color", if (handleId == "reader") "#44102d42" else "#3318304A") ?: "#3318304A") }
     var shape by remember { mutableStateOf(prefs.getString("${prefix}shape", if (handleId == "reader") "half_oval" else "triangle") ?: "triangle") }
     
-    // Gestures
-    var swipeUp by remember { mutableStateOf(prefs.getString("${prefix}swipe_up", "none") ?: "none") }
-    var swipeDown by remember { mutableStateOf(prefs.getString("${prefix}swipe_down", "none") ?: "none") }
-    var swipeLeft by remember { mutableStateOf(prefs.getString("${prefix}swipe_left", "none") ?: "none") }
-    var swipeRight by remember { mutableStateOf(prefs.getString("${prefix}swipe_right", "none") ?: "none") }
-    var doubleTap by remember { mutableStateOf(prefs.getString("${prefix}double_tap", "none") ?: "none") }
-    var longPress by remember { mutableStateOf(prefs.getString("${prefix}long_press", "none") ?: "none") }
+    // Gestures state
+    val gestureKeys = listOf("tap", "double_tap", "long_press", "swipe_up", "swipe_down", "swipe_left", "swipe_right")
+    val gesturesMap = remember { mutableStateMapOf<String, String>() }
+    
+    LaunchedEffect(Unit) {
+        gestureKeys.forEach { key ->
+            val action = prefs.getString("${prefix}$key", "none") ?: "none"
+            if (action != "none") {
+                gesturesMap[key] = action
+            }
+        }
+    }
 
-    fun save() {
-        prefs.edit()
-            .putInt("${prefix}y", yPos.toInt())
-            .putInt("${prefix}width", sizeWidth.toInt())
-            .putInt("${prefix}height", sizeHeight.toInt())
-            .putString("${prefix}color", colorHex)
-            .putString("${prefix}shape", shape)
-            .putString("${prefix}swipe_up", swipeUp)
-            .putString("${prefix}swipe_down", swipeDown)
-            .putString("${prefix}swipe_left", swipeLeft)
-            .putString("${prefix}swipe_right", swipeRight)
-            .putString("${prefix}double_tap", doubleTap)
-            .putString("${prefix}long_press", longPress)
-            .apply()
+    fun updateGesture(gesture: String, action: String) {
+        if (action == "none") {
+            gesturesMap.remove(gesture)
+        } else {
+            gesturesMap[gesture] = action
+        }
+        prefs.edit().putString("${prefix}$gesture", action).apply()
     }
     
     val actions = listOf(
-        "none" to "None",
+        "toggle_sidebar" to "Toggle Sidebar",
+        "toggle_reader" to "Toggle Reader",
         "open_apps" to "Open Apps Page",
         "open_scheduler" to "Open Scheduler",
         "open_calculator" to "Open Calculator",
@@ -67,15 +70,24 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
         "action_screenshot" to "System: Screenshot"
     )
     
+    val gestureLabels = mapOf(
+        "tap" to "Single Tap",
+        "double_tap" to "Double Tap",
+        "long_press" to "Long Press",
+        "swipe_up" to "Swipe Up",
+        "swipe_down" to "Swipe Down",
+        "swipe_left" to "Swipe Left",
+        "swipe_right" to "Swipe Right"
+    )
+    
+    var showAddGestureDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Edit ${if (handleId == "sidebar") "Sidebar" else "Reader"} Handle") },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        save()
-                        onBack()
-                    }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, "Back")
                     }
                 }
@@ -83,21 +95,33 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
         }
     ) { padding ->
         Column(modifier = Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
-            Text("Appearance", style = MaterialTheme.typography.titleMedium)
+            Text("Appearance (Applies Instantly)", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             
             Text("Y Position: ${yPos.toInt()}")
-            Slider(value = yPos, onValueChange = { yPos = it }, valueRange = 0f..2500f)
+            Slider(value = yPos, onValueChange = { 
+                yPos = it
+                prefs.edit().putInt("${prefix}y", it.toInt()).apply() 
+            }, valueRange = 0f..2500f)
             
             Text("Width (Thickness): ${sizeWidth.toInt()}dp")
-            Slider(value = sizeWidth, onValueChange = { sizeWidth = it }, valueRange = 2f..50f)
+            Slider(value = sizeWidth, onValueChange = { 
+                sizeWidth = it
+                prefs.edit().putInt("${prefix}width", it.toInt()).apply()
+            }, valueRange = 2f..50f)
             
             Text("Height (Length): ${sizeHeight.toInt()}dp")
-            Slider(value = sizeHeight, onValueChange = { sizeHeight = it }, valueRange = 20f..300f)
+            Slider(value = sizeHeight, onValueChange = { 
+                sizeHeight = it
+                prefs.edit().putInt("${prefix}height", it.toInt()).apply()
+            }, valueRange = 20f..300f)
             
             OutlinedTextField(
                 value = colorHex,
-                onValueChange = { colorHex = it },
+                onValueChange = { 
+                    colorHex = it
+                    prefs.edit().putString("${prefix}color", it).apply()
+                },
                 label = { Text("Color (AARRGGBB hex)") },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -108,23 +132,79 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
                 listOf("triangle", "rectangle", "half_oval", "rounded_rect").forEach { s ->
                     FilterChip(
                         selected = shape == s,
-                        onClick = { shape = s },
+                        onClick = { 
+                            shape = s
+                            prefs.edit().putString("${prefix}shape", s).apply()
+                        },
                         label = { Text(s.replace("_", " ").capitalize()) }
                     )
                 }
             }
             
             Spacer(modifier = Modifier.height(24.dp))
-            Text("Gestures", style = MaterialTheme.typography.titleMedium)
+            Text("Assigned Gestures", style = MaterialTheme.typography.titleMedium)
             Spacer(modifier = Modifier.height(8.dp))
             
-            ActionDropdown("Swipe Up", swipeUp, actions) { swipeUp = it }
-            ActionDropdown("Swipe Down", swipeDown, actions) { swipeDown = it }
-            ActionDropdown("Swipe Left", swipeLeft, actions) { swipeLeft = it }
-            ActionDropdown("Swipe Right", swipeRight, actions) { swipeRight = it }
-            ActionDropdown("Double Tap", doubleTap, actions) { doubleTap = it }
-            ActionDropdown("Long Press", longPress, actions) { longPress = it }
+            if (gesturesMap.isEmpty()) {
+                Text("No gestures assigned.", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
+            } else {
+                gesturesMap.forEach { (gesture, action) ->
+                    val actionName = actions.find { it.first == action }?.second ?: action
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                        Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(gestureLabels[gesture] ?: gesture, style = MaterialTheme.typography.titleSmall)
+                                Text(actionName, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            IconButton(onClick = { updateGesture(gesture, "none") }) {
+                                Icon(Icons.Default.Delete, "Remove")
+                            }
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Button(
+                onClick = { showAddGestureDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Add, "Add Gesture")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("ADD GESTURE")
+            }
         }
+    }
+    
+    if (showAddGestureDialog) {
+        var selectedGesture by remember { mutableStateOf(gestureKeys.first { !gesturesMap.containsKey(it) } ?: gestureKeys.first()) }
+        var selectedAction by remember { mutableStateOf(actions.first().first) }
+        
+        AlertDialog(
+            onDismissRequest = { showAddGestureDialog = false },
+            title = { Text("Add Gesture") },
+            text = {
+                Column {
+                    ActionDropdown("Select Gesture", selectedGesture, gestureKeys.filter { !gesturesMap.containsKey(it) }.map { it to (gestureLabels[it] ?: it) }) { selectedGesture = it }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    ActionDropdown("Select Action", selectedAction, actions) { selectedAction = it }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    updateGesture(selectedGesture, selectedAction)
+                    showAddGestureDialog = false
+                }) {
+                    Text("Add")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddGestureDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
     }
 }
 
@@ -148,7 +228,8 @@ fun ActionDropdown(label: String, selected: String, actions: List<Pair<String, S
         )
         ExposedDropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
+            modifier = Modifier.exposedDropdownSize(matchTextFieldWidth = true)
         ) {
             actions.forEach { (id, title) ->
                 DropdownMenuItem(
@@ -162,3 +243,4 @@ fun ActionDropdown(label: String, selected: String, actions: List<Pair<String, S
         }
     }
 }
+

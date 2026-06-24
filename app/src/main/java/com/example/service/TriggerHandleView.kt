@@ -43,7 +43,12 @@ class TriggerHandleView(
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
             if (!isDragging) {
-                onTriggerTapped()
+                val tapAction = prefs.getString("${prefix}tap", "none") ?: "none"
+                if (tapAction != "none") {
+                    handleAction("tap")
+                } else {
+                    onTriggerTapped()
+                }
             }
             return true
         }
@@ -78,7 +83,11 @@ class TriggerHandleView(
 
     private fun handleAction(gesture: String) {
         val action = prefs.getString("$prefix$gesture", "none") ?: "none"
-        if (action.startsWith("open_")) {
+        if (action == "toggle_sidebar") {
+            onTriggerTapped()
+        } else if (action == "toggle_reader") {
+            FloatingReaderService.instance?.toggleReader()
+        } else if (action.startsWith("open_")) {
             val pageType = action.removePrefix("open_")
             FloatingReaderService.instance?.openSidebarPage(pageType)
         } else if (action.startsWith("action_")) {
