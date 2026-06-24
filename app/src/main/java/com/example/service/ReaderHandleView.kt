@@ -11,6 +11,7 @@ import android.graphics.PixelFormat
 import android.graphics.RectF
 import android.os.Build
 import android.util.Log
+import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -30,13 +31,61 @@ class ReaderHandleView(
     private var initialTouchY = 0f
     private var isDragging = false
     private val clickSlop = 10f
+    
+    private val prefix = "handle_reader_"
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#44102d42") // slightly different hue, semi-transparent
         style = Paint.Style.FILL
     }
 
     private val path = Path()
+    
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            if (!isDragging) {
+                onTriggerTapped()
+            }
+            return true
+        }
+
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            handleAction("double_tap")
+            return true
+        }
+
+        override fun onLongPress(e: MotionEvent) {
+            handleAction("long_press")
+        }
+
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+            if (e1 == null) return false
+            val dx = e2.x - e1.x
+            val dy = e2.y - e1.y
+            if (abs(dx) > abs(dy)) {
+                if (abs(velocityX) > 100) {
+                    if (dx > 0) handleAction("swipe_right") else handleAction("swipe_left")
+                    return true
+                }
+            } else {
+                if (abs(velocityY) > 100) {
+                    if (dy > 0) handleAction("swipe_down") else handleAction("swipe_up")
+                    return true
+                }
+            }
+            return false
+        }
+    })
+
+    private fun handleAction(gesture: String) {
+        val action = prefs.getString("$prefix$gesture", "none") ?: "none"
+        if (action.startsWith("open_")) {
+            val pageType = action.removePrefix("open_")
+            FloatingReaderService.instance?.openSidebarPage(pageType)
+        } else if (action.startsWith("action_")) {
+            val sysAction = action.removePrefix("action_")
+            VianSideAccessibilityService.instance?.performAction(sysAction)
+        }
+    }
 
     init {
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -47,9 +96,11 @@ class ReaderHandleView(
         }
 
         val density = context.resources.displayMetrics.density
-        // small semi-circle
-        val widthPx = (16 * density).toInt() // width of the handle
-        val heightPx = (60 * density).toInt() // height
+        val w = prefs.getInt("${prefix}width", 16)
+        val h = prefs.getInt("${prefix}height", 60)
+        
+        val widthPx = (w * density).toInt()
+        val heightPx = (h * density).toInt()
 
         layoutParams = WindowManager.LayoutParams(
             widthPx,
@@ -61,8 +112,8 @@ class ReaderHandleView(
         ).apply {
             gravity = Gravity.END or Gravity.TOP
             x = 0 
-            // Put it slightly above the normal trigger by default
-            y = prefs.getInt("reader_trigger_y", prefs.getInt("trigger_y", 500) - (80 * density).toInt())
+            // Default y is slightly above the normal trigger
+            y = prefs.getInt("${prefix}y", 400)
         }
 
         setupDrag()
@@ -71,6 +122,7 @@ class ReaderHandleView(
     @SuppressLint("ClickableViewAccessibility")
     private fun setupDrag() {
         setOnTouchListener { _, event ->
+            val gestureHandled = gestureDetector.onTouchEvent(event)
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialY = layoutParams.y
@@ -88,10 +140,8 @@ class ReaderHandleView(
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!isDragging) {
-                        onTriggerTapped()
-                    } else {
-                        prefs.edit().putInt("reader_trigger_y", layoutParams.y).apply()
+                    if (isDragging) {
+                        prefs.edit().putInt("${prefix}y", layoutParams.y).apply()
                     }
                     true
                 }
@@ -105,19 +155,57 @@ class ReaderHandleView(
         
         val w = width.toFloat()
         val h = height.toFloat()
-        val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
+        val isRight = prefs.getString("sidebar_position", "right") == "right"
+        
+        val colorHex = prefs.getString("${prefix}color", "#44102d42") ?: "#44102d42"
+        try {
+            paint.color = Color.parseColor(colorHex)
+        } catch (e: Exception) {
+            paint.color = Color.parseColor("#44102d42")
+        }
 
         path.reset()
-        if (isRight) {
-            // Anchor to the right edge (right side is straight, left side is curved)
-            path.moveTo(w, 0f)
-            path.cubicTo(0f, 0f, 0f, h, w, h)
-            path.close()
-        } else {
-            // Anchor to the left edge
-            path.moveTo(0f, 0f)
-            path.cubicTo(w, 0f, w, h, 0f, h)
-            path.close()
+        val shape = prefs.getString("${prefix}shape", "half_oval") ?: "half_oval"
+        
+        when (shape) {
+            "rectangle" -> {
+                path.addRect(0f, 0f, w, h, Path.Direction.CW)
+            }
+            "rounded_rect" -> {
+                val radius = w / 2f
+                if (isRight) {
+                    path.addRoundRect(RectF(0f, 0f, w, h), floatArrayOf(radius, radius, 0f, 0f, 0f, 0f, radius, radius), Path.Direction.CW)
+                } else {
+                    path.addRoundRect(RectF(0f, 0f, w, h), floatArrayOf(0f, 0f, radius, radius, radius, radius, 0f, 0f), Path.Direction.CW)
+                }
+            }
+            "triangle" -> {
+                val angleHeight = w * 0.577f
+                if (isRight) {
+                    path.moveTo(w, 0f)
+                    path.lineTo(0f, angleHeight)
+                    path.lineTo(0f, h - angleHeight)
+                    path.lineTo(w, h)
+                    path.close()
+                } else {
+                    path.moveTo(0f, 0f)
+                    path.lineTo(w, angleHeight)
+                    path.lineTo(w, h - angleHeight)
+                    path.lineTo(0f, h)
+                    path.close()
+                }
+            }
+            else -> { // half_oval
+                if (isRight) {
+                    path.moveTo(w, 0f)
+                    path.cubicTo(0f, 0f, 0f, h, w, h)
+                    path.close()
+                } else {
+                    path.moveTo(0f, 0f)
+                    path.cubicTo(w, 0f, w, h, 0f, h)
+                    path.close()
+                }
+            }
         }
 
         canvas.drawPath(path, paint)
@@ -129,7 +217,7 @@ class ReaderHandleView(
         try {
             if (prefs.getBoolean("reader_handle_enabled", false)) {
                 if (!isAddedToWindow) {
-                    val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
+                    val isRight = prefs.getString("sidebar_position", "right") == "right"
                     layoutParams.gravity = (if (isRight) Gravity.END else Gravity.START) or Gravity.TOP
                     windowManager.addView(this, layoutParams)
                     isAddedToWindow = true
@@ -152,8 +240,17 @@ class ReaderHandleView(
     }
 
     fun updatePosition() {
-        val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
+        val density = context.resources.displayMetrics.density
+        val w = prefs.getInt("${prefix}width", 16)
+        val h = prefs.getInt("${prefix}height", 60)
+        
+        layoutParams.width = (w * density).toInt()
+        layoutParams.height = (h * density).toInt()
+        layoutParams.y = prefs.getInt("${prefix}y", 400)
+        
+        val isRight = prefs.getString("sidebar_position", "right") == "right"
         layoutParams.gravity = (if (isRight) Gravity.END else Gravity.START) or Gravity.TOP
+        
         if (isAddedToWindow) {
             windowManager.updateViewLayout(this, layoutParams)
         }

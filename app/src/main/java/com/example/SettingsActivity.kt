@@ -60,6 +60,7 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
                     onNavigateToNetSpeed = { currentRoute = "netspeed" },
                     onNavigateToData = { currentRoute = "data" },
                     onNavigateToPages = { currentRoute = "pages" },
+                    onNavigateToHandles = { currentRoute = "handles" },
                     onBack = onFinish
                 )
                 "reader" -> ReaderSettingsScreen(
@@ -77,6 +78,17 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
                 "pages" -> PageManagementSettingsScreen(
                     onBack = { currentRoute = "main" }
                 )
+                "handles" -> HandlesListSettingsScreen(
+                    onNavigateToHandle = { currentRoute = "handle_$it" },
+                    onBack = { currentRoute = "main" }
+                )
+            }
+            if (currentRoute.startsWith("handle_")) {
+                val handleId = currentRoute.removePrefix("handle_")
+                HandleEditScreen(
+                    handleId = handleId,
+                    onBack = { currentRoute = "handles" }
+                )
             }
         }
     }
@@ -84,7 +96,7 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -> Unit, onNavigateToNetSpeed: () -> Unit, onNavigateToData: () -> Unit, onNavigateToPages: () -> Unit, onBack: () -> Unit) {
+fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -> Unit, onNavigateToNetSpeed: () -> Unit, onNavigateToData: () -> Unit, onNavigateToPages: () -> Unit, onNavigateToHandles: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -113,6 +125,12 @@ fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -
                     headlineContent = { Text("Sidebar Page Management") },
                     supportingContent = { Text("Add, remove, reorder sidebar pages") },
                     modifier = Modifier.clickable { onNavigateToPages() }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Handles Settings") },
+                    supportingContent = { Text("Customize trigger handles & gestures") },
+                    modifier = Modifier.clickable { onNavigateToHandles() }
                 )
                 Divider()
                 ListItem(

@@ -8,8 +8,10 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.PixelFormat
+import android.graphics.RectF
 import android.os.Build
 import android.util.Log
+import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -29,13 +31,61 @@ class TriggerHandleView(
     private var initialTouchY = 0f
     private var isDragging = false
     private val clickSlop = 10f
+    
+    private val prefix = "handle_sidebar_"
 
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.parseColor("#3318304A") // Darker base blue, keeping it highly transparent
         style = Paint.Style.FILL
     }
 
     private val path = Path()
+
+    private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+            if (!isDragging) {
+                onTriggerTapped()
+            }
+            return true
+        }
+
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            handleAction("double_tap")
+            return true
+        }
+
+        override fun onLongPress(e: MotionEvent) {
+            handleAction("long_press")
+        }
+
+        override fun onFling(e1: MotionEvent?, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+            if (e1 == null) return false
+            val dx = e2.x - e1.x
+            val dy = e2.y - e1.y
+            if (abs(dx) > abs(dy)) {
+                if (abs(velocityX) > 100) {
+                    if (dx > 0) handleAction("swipe_right") else handleAction("swipe_left")
+                    return true
+                }
+            } else {
+                if (abs(velocityY) > 100) {
+                    if (dy > 0) handleAction("swipe_down") else handleAction("swipe_up")
+                    return true
+                }
+            }
+            return false
+        }
+    })
+
+    private fun handleAction(gesture: String) {
+        val action = prefs.getString("$prefix$gesture", "none") ?: "none"
+        if (action.startsWith("open_")) {
+            val pageType = action.removePrefix("open_")
+            FloatingReaderService.instance?.openSidebarPage(pageType)
+        } else if (action.startsWith("action_")) {
+            val sysAction = action.removePrefix("action_")
+            VianSideAccessibilityService.instance?.performAction(sysAction)
+        }
+    }
 
     init {
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -46,8 +96,11 @@ class TriggerHandleView(
         }
 
         val density = context.resources.displayMetrics.density
-        val widthPx = (6 * density).toInt()
-        val heightPx = (120 * density).toInt()
+        val w = prefs.getInt("${prefix}width", 6)
+        val h = prefs.getInt("${prefix}height", 120)
+        
+        val widthPx = (w * density).toInt()
+        val heightPx = (h * density).toInt()
 
         layoutParams = WindowManager.LayoutParams(
             widthPx,
@@ -59,7 +112,7 @@ class TriggerHandleView(
         ).apply {
             gravity = Gravity.END or Gravity.TOP
             x = 0 
-            y = prefs.getInt("trigger_y", 500)
+            y = prefs.getInt("${prefix}y", 500)
         }
 
         setupDrag()
@@ -68,6 +121,7 @@ class TriggerHandleView(
     @SuppressLint("ClickableViewAccessibility")
     private fun setupDrag() {
         setOnTouchListener { _, event ->
+            val gestureHandled = gestureDetector.onTouchEvent(event)
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
                     initialY = layoutParams.y
@@ -85,11 +139,8 @@ class TriggerHandleView(
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (!isDragging) {
-                        Log.d("TriggerHandleView", "trigger tapped")
-                        onTriggerTapped()
-                    } else {
-                        prefs.edit().putInt("trigger_y", layoutParams.y).apply()
+                    if (isDragging) {
+                        prefs.edit().putInt("${prefix}y", layoutParams.y).apply()
                     }
                     true
                 }
@@ -103,28 +154,57 @@ class TriggerHandleView(
         
         val w = width.toFloat()
         val h = height.toFloat()
-        val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
-
-        // For a 120 degree angle between the vertical edge and the top/bottom edges,
-        // the top edge must be at a 30-degree or 60-degree slope.
-        // Let's use tan(30) approx 0.577. 
-        val angleHeight = w * 0.577f
+        val isRight = prefs.getString("sidebar_position", "right") == "right"
+        
+        val colorHex = prefs.getString("${prefix}color", "#3318304A") ?: "#3318304A"
+        try {
+            paint.color = Color.parseColor(colorHex)
+        } catch (e: Exception) {
+            paint.color = Color.parseColor("#3318304A")
+        }
 
         path.reset()
-        if (isRight) {
-            // Anchor to the right edge
-            path.moveTo(w, 0f)
-            path.lineTo(0f, angleHeight)
-            path.lineTo(0f, h - angleHeight)
-            path.lineTo(w, h)
-            path.close()
-        } else {
-            // Anchor to the left edge
-            path.moveTo(0f, 0f)
-            path.lineTo(w, angleHeight)
-            path.lineTo(w, h - angleHeight)
-            path.lineTo(0f, h)
-            path.close()
+        val shape = prefs.getString("${prefix}shape", "triangle") ?: "triangle"
+        
+        when (shape) {
+            "rectangle" -> {
+                path.addRect(0f, 0f, w, h, Path.Direction.CW)
+            }
+            "rounded_rect" -> {
+                val radius = w / 2f
+                if (isRight) {
+                    path.addRoundRect(RectF(0f, 0f, w, h), floatArrayOf(radius, radius, 0f, 0f, 0f, 0f, radius, radius), Path.Direction.CW)
+                } else {
+                    path.addRoundRect(RectF(0f, 0f, w, h), floatArrayOf(0f, 0f, radius, radius, radius, radius, 0f, 0f), Path.Direction.CW)
+                }
+            }
+            "half_oval" -> {
+                if (isRight) {
+                    path.moveTo(w, 0f)
+                    path.cubicTo(0f, 0f, 0f, h, w, h)
+                    path.close()
+                } else {
+                    path.moveTo(0f, 0f)
+                    path.cubicTo(w, 0f, w, h, 0f, h)
+                    path.close()
+                }
+            }
+            else -> { // triangle
+                val angleHeight = w * 0.577f
+                if (isRight) {
+                    path.moveTo(w, 0f)
+                    path.lineTo(0f, angleHeight)
+                    path.lineTo(0f, h - angleHeight)
+                    path.lineTo(w, h)
+                    path.close()
+                } else {
+                    path.moveTo(0f, 0f)
+                    path.lineTo(w, angleHeight)
+                    path.lineTo(w, h - angleHeight)
+                    path.lineTo(0f, h)
+                    path.close()
+                }
+            }
         }
 
         canvas.drawPath(path, paint)
@@ -136,7 +216,7 @@ class TriggerHandleView(
         try {
             if (prefs.getBoolean("trigger_visible", true)) {
                 if (!isAddedToWindow) {
-                    val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
+                    val isRight = prefs.getString("sidebar_position", "right") == "right"
                     layoutParams.gravity = (if (isRight) Gravity.END else Gravity.START) or Gravity.TOP
                     windowManager.addView(this, layoutParams)
                     isAddedToWindow = true
@@ -159,8 +239,17 @@ class TriggerHandleView(
     }
 
     fun updatePosition() {
-        val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
+        val density = context.resources.displayMetrics.density
+        val w = prefs.getInt("${prefix}width", 6)
+        val h = prefs.getInt("${prefix}height", 120)
+        
+        layoutParams.width = (w * density).toInt()
+        layoutParams.height = (h * density).toInt()
+        layoutParams.y = prefs.getInt("${prefix}y", 500)
+        
+        val isRight = prefs.getString("sidebar_position", "right") == "right"
         layoutParams.gravity = (if (isRight) Gravity.END else Gravity.START) or Gravity.TOP
+        
         if (isAddedToWindow) {
             windowManager.updateViewLayout(this, layoutParams)
         }

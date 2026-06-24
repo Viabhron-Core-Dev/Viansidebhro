@@ -257,4 +257,10 @@ class SidebarView(
             windowManager.removeView(this)
         }
     }
+    
+    fun goToPage(index: Int) {
+        if (index in 0 until (viewPager.adapter?.itemCount ?: 0)) {
+            viewPager.setCurrentItem(index, true)
+        }
+    }
 }

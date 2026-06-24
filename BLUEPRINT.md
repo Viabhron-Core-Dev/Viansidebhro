@@ -519,18 +519,18 @@ Scope: Simple lightweight compass page.
 - Stops listening to sensors when page is hidden or sidebar closed
 - Goal: fast direction checking with zero idle battery drain
 
-### Phase F17 — Trigger Gestures
-Scope: Full 7-gesture support on trigger handle. Settings (F7) required for assignment config.
-- Detect on TriggerHandleView using GestureDetector:
-  Tap / Double tap / Long press / Swipe up / Swipe down / Swipe left / Swipe right
+### Phase F17 — Trigger Gestures & Handle Settings (IMPLEMENTED)
+Scope: Full 7-gesture support on trigger handles and fully editable handle appearances.
+- Handle Edit UI added in Settings allowing changes to Y-position, width, height, shape (rectangle, rounded rect, half oval, triangle), color, and transparency.
+- Detect on TriggerHandleView and ReaderHandleView using GestureDetector:
+  Single Tap / Double tap / Long press / Swipe up / Swipe down / Swipe left / Swipe right
 - Each gesture independently assignable to one action:
-  - Toggle sidebar / Open reader / Close reader / Toggle reader
-  - Lock screen / Expand notifications / Open quick settings
-  - Mute-unmute media / Open specific app / Nothing
-- Default assignments: Tap → toggle sidebar. All others → nothing.
-- Gesture-to-action mapping stored in SharedPreferences as JSON
-- Configurable in Phase F7 settings — add gesture assignment UI there now
-- Goal: all 7 gestures detected and dispatched correctly
+  - System Actions: Home, Back, Recents, Notifications, Quick Settings, Lock Screen, Screenshot
+  - Sidebar Actions: Open Apps, Open Scheduler, Open Calculator, Open Compass
+- Configurable in Settings (Handle Settings section)
+- Handle configuration per-handle (Sidebar vs. Reader handle)
+- Position updates correctly after editing in settings
+- Goal: all gestures detected and dispatched, visually customizable handles
 
 ### Phase F18 — Call Recorder Core
 Scope: Automatic call recording inside FloatingReaderService.

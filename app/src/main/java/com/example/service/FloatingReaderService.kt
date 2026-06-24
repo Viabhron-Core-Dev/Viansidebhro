@@ -83,8 +83,14 @@ class FloatingReaderService : Service() {
             "use_dark_theme" -> {
                 applyThemeFromPrefs()
             }
-            "trigger_position" -> {
+            "trigger_position", "sidebar_position" -> {
                 triggerHandleView?.updatePosition()
+                readerHandleView?.updatePosition()
+            }
+            "handle_sidebar_y", "handle_sidebar_width", "handle_sidebar_height", "handle_sidebar_color", "handle_sidebar_shape" -> {
+                triggerHandleView?.updatePosition()
+            }
+            "handle_reader_y", "handle_reader_width", "handle_reader_height", "handle_reader_color", "handle_reader_shape" -> {
                 readerHandleView?.updatePosition()
             }
             "reader_handle_enabled" -> {
@@ -468,12 +474,21 @@ class FloatingReaderService : Service() {
                 onAddClicked = { showAddElementOverlay() },
                 onClose = { sidebarView?.detach() }
             )
-            val defaultPage = sidebarPagesList[sidebarDefaultIndex]
+            val defaultPage = sidebarPagesList.getOrNull(sidebarDefaultIndex)
             if (defaultPage is AppsPageView) {
                 sidebarView?.updateHeight((defaultPage).getCurrentHeightPx())
             }
         }
         sidebarView?.attach()
+    }
+    
+    fun openSidebarPage(type: String) {
+        showSidebar()
+        val pageConfigs = PageManager.getPages(prefs)
+        val index = pageConfigs.indexOfFirst { it.type == type }
+        if (index != -1) {
+            sidebarView?.goToPage(index)
+        }
     }
 
     private fun showAddElementOverlay() {
