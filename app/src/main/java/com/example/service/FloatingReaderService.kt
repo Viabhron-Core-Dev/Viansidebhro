@@ -192,6 +192,7 @@ class FloatingReaderService : Service() {
         super.onCreate()
         instance = this
         
+        prefs = getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE)
         prefs.edit().putBoolean("is_handle_edit_mode", false).apply()
 
         // Start Foreground Service
@@ -224,7 +225,6 @@ class FloatingReaderService : Service() {
             startForeground(1, notification)
         }
 
-        prefs = getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE)
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
         loadSettingsFromPrefs()
         savedWindowWidth = prefs.getInt("win_w", 800)
