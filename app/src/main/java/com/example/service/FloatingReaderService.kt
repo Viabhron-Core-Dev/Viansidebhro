@@ -26,8 +26,12 @@ import kotlin.math.max
 import androidx.documentfile.provider.DocumentFile
 import android.net.Uri
 import com.example.utils.PageManager
+import androidx.lifecycle.setViewTreeLifecycleOwner
+import androidx.lifecycle.setViewTreeViewModelStoreOwner
+import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 
 class FloatingReaderService : Service() {
+    private var serviceLifecycleOwner: ServiceLifecycleOwner? = null
     private lateinit var windowManager: WindowManager
     private lateinit var floatingView: View
     private lateinit var layoutParams: WindowManager.LayoutParams
@@ -191,6 +195,11 @@ class FloatingReaderService : Service() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        
+        serviceLifecycleOwner = ServiceLifecycleOwner()
+        serviceLifecycleOwner?.onCreate()
+        serviceLifecycleOwner?.onStart()
+        serviceLifecycleOwner?.onResume()
         
         prefs = getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE)
         prefs.edit().putBoolean("is_handle_edit_mode", false).apply()
@@ -577,6 +586,12 @@ class FloatingReaderService : Service() {
 
     private fun setupFloatingView() {
         floatingView = LayoutInflater.from(this).inflate(R.layout.layout_floating_reader, null)
+        
+        serviceLifecycleOwner?.let {
+            floatingView.setViewTreeLifecycleOwner(it)
+            floatingView.setViewTreeViewModelStoreOwner(it)
+            floatingView.setViewTreeSavedStateRegistryOwner(it)
+        }
 
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
@@ -2600,6 +2615,9 @@ class FloatingReaderService : Service() {
         if (::windowManager.isInitialized && ::floatingView.isInitialized) {
             windowManager.removeView(floatingView)
         }
+        serviceLifecycleOwner?.onPause()
+        serviceLifecycleOwner?.onStop()
+        serviceLifecycleOwner?.onDestroy()
         super.onDestroy()
     }
 }

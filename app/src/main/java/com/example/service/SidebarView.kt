@@ -36,7 +36,7 @@ class SidebarView(
     private val viewPager: ViewPager2
     private val dotsLayout: LinearLayout
     private val pages = mutableListOf<View>()
-    private val dots = mutableListOf<ImageView>()
+    private val dots = mutableListOf<View>()
 
     init {
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -205,16 +205,24 @@ class SidebarView(
     private fun setupDots(count: Int) {
         dots.clear()
         dotsLayout.removeAllViews()
+        if (count <= 1) {
+            dotsLayout.visibility = View.GONE
+            return
+        }
+        dotsLayout.visibility = View.VISIBLE
         val density = context.resources.displayMetrics.density
         val size = (8 * density).toInt()
         val margin = (4 * density).toInt()
         
         for (i in 0 until count) {
-            val dot = ImageView(context).apply {
+            val dot = View(context).apply {
                 layoutParams = LinearLayout.LayoutParams(size, size).apply {
                     setMargins(margin, 0, margin, 0)
                 }
-                setImageResource(android.R.drawable.presence_invisible) // standard dot-like shape
+                background = android.graphics.drawable.GradientDrawable().apply {
+                    shape = android.graphics.drawable.GradientDrawable.OVAL
+                    setColor(Color.WHITE)
+                }
             }
             dots.add(dot)
             dotsLayout.addView(dot)
@@ -223,16 +231,21 @@ class SidebarView(
     }
     
     private fun updateDots(position: Int) {
+        if (dots.isEmpty()) return
         val density = context.resources.displayMetrics.density
-        val paddingActive = (2 * density).toInt()
         
         for (i in dots.indices) {
+            val bg = dots[i].background as? android.graphics.drawable.GradientDrawable
             if (i == position) {
-                dots[i].setColorFilter(Color.WHITE)
-                dots[i].setPadding(paddingActive, paddingActive, paddingActive, paddingActive)
+                bg?.setColor(Color.WHITE)
+                dots[i].layoutParams = LinearLayout.LayoutParams((8 * density).toInt(), (8 * density).toInt()).apply {
+                    setMargins((4 * density).toInt(), 0, (4 * density).toInt(), 0)
+                }
             } else {
-                dots[i].setColorFilter(Color.parseColor("#88FFFFFF"))
-                dots[i].setPadding(0, 0, 0, 0)
+                bg?.setColor(Color.parseColor("#44FFFFFF"))
+                dots[i].layoutParams = LinearLayout.LayoutParams((6 * density).toInt(), (6 * density).toInt()).apply {
+                    setMargins((5 * density).toInt(), 0, (5 * density).toInt(), 0)
+                }
             }
         }
     }
