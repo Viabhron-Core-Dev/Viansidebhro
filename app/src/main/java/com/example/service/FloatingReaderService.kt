@@ -97,7 +97,9 @@ class FloatingReaderService : Service() {
             "handle_reader_y", "handle_reader_width", "handle_reader_height", "handle_reader_color", "handle_reader_shape" -> {
                 readerHandleView?.updatePosition()
             }
-            "sidebar_pages", "sidebar_default_page_index" -> {
+            "sidebar_pages", "sidebar_default_page_index",
+            "sidebar_columns", "sidebar_width", "sidebar_height", 
+            "sidebar_wrap_content", "sidebar_transparency", "sidebar_position_left" -> {
                 val wasAttached = sidebarView?.windowToken != null
                 sidebarView?.detach()
                 sidebarView = null

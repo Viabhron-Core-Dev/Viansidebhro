@@ -47,10 +47,13 @@ class SidebarView(
         }
 
         val density = context.resources.displayMetrics.density
-        val widthPx = (200 * density).toInt()
-        val heightPx = WindowManager.LayoutParams.WRAP_CONTENT
+        val widthDp = prefs.getInt("sidebar_width", 320)
+        val widthPx = (widthDp * density).toInt()
+        
+        val wrapContent = prefs.getBoolean("sidebar_wrap_content", true)
+        val heightPx = if (wrapContent) WindowManager.LayoutParams.WRAP_CONTENT else (prefs.getInt("sidebar_height", 450) * density).toInt()
 
-        val isRight = prefs.getString("trigger_position", "middle_right")?.contains("right") ?: true
+        val isRight = !prefs.getBoolean("sidebar_position_left", false)
         val gravityEdge = if (isRight) Gravity.END else Gravity.START
 
         layoutParams = WindowManager.LayoutParams(
@@ -75,9 +78,12 @@ class SidebarView(
             }
         }
 
+        val opacity = prefs.getFloat("sidebar_transparency", 0.9f)
+        val alphaInt = (opacity * 255).toInt().coerceIn(0, 255)
+        
         val drawable = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            setColor(Color.parseColor("#80000000"))
+            setColor(Color.argb(alphaInt, 0, 0, 0))
             
             // Adjust corners based on left or right edge
             cornerRadii = if (isRight) {
@@ -251,14 +257,21 @@ class SidebarView(
     }
 
     fun updateHeight(pageHeightPx: Int) {
+        val wrapContent = prefs.getBoolean("sidebar_wrap_content", true)
         val density = context.resources.displayMetrics.density
-        // pageHeightPx might strictly be its content, but let's just add our new thin header (28) + dots (30) 
-        var targetHeight = pageHeightPx + (28 + 30) * density
         
-        // Min height
-        targetHeight = Math.max((150 * density), targetHeight)
+        if (!wrapContent) {
+            layoutParams.height = (prefs.getInt("sidebar_height", 450) * density).toInt()
+        } else {
+            var targetHeight = pageHeightPx + (28 + 30) * density
+            val maxHeight = (prefs.getInt("sidebar_height", 450) * density).toInt()
+            
+            targetHeight = Math.max((150 * density), targetHeight)
+            targetHeight = Math.min(maxHeight.toFloat(), targetHeight)
+            
+            layoutParams.height = targetHeight.toInt()
+        }
         
-        layoutParams.height = targetHeight.toInt()
         if (windowToken != null) {
             windowManager.updateViewLayout(this, layoutParams)
         }
