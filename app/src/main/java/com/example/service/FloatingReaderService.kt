@@ -158,6 +158,7 @@ class FloatingReaderService : Service() {
     private var sidebarDefaultIndex = 0
     private lateinit var appsManager: SidebarAppsManager
     private var appPickerOverlayView: AppPickerOverlayView? = null
+    private var intentPickerOverlayView: IntentPickerOverlayView? = null
     private var addElementOverlayView: AddElementOverlayView? = null
     private var sidebarEditOverlayView: SidebarEditOverlayView? = null
     
@@ -583,6 +584,14 @@ class FloatingReaderService : Service() {
         appPickerOverlayView?.attach()
     }
 
+    fun showIntentPicker(targetFolderUuid: String? = null, onElementSelected: ((String) -> Unit)? = null) {
+        intentPickerOverlayView?.detach()
+        intentPickerOverlayView = IntentPickerOverlayView(this, appsManager, serviceScope, windowManager, targetFolderUuid, onIntentSelected = onElementSelected) {
+            intentPickerOverlayView?.detach()
+        }
+        intentPickerOverlayView?.attach()
+    }
+
     private fun showAppPickerForSelection(onElementSelected: (String) -> Unit) {
         appPickerOverlayView?.detach()
         appPickerOverlayView = AppPickerOverlayView(this, appsManager, serviceScope, windowManager, null, onAppSelected = { id ->
@@ -637,6 +646,15 @@ class FloatingReaderService : Service() {
         } else if (id.startsWith("display:")) {
             val actionId = id.removePrefix("display:")
             DisplayHandler.handleDisplayAction(this, actionId)
+        } else if (id.startsWith("intent:")) {
+            val componentStr = id.removePrefix("intent:")
+            val parts = componentStr.split("/")
+            if (parts.size == 2) {
+                val launchIntent = Intent()
+                launchIntent.setComponent(android.content.ComponentName(parts[0], parts[1]))
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                try { startActivity(launchIntent) } catch (e: Exception) {}
+            }
         } else if (id.startsWith("shortcut:")) {
             try {
                 val parts = id.split(":", limit = 3)
@@ -655,6 +673,20 @@ class FloatingReaderService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "ADD_ELEMENT") {
+            val elementId = intent.getStringExtra("element_id") ?: return START_NOT_STICKY
+            val folderUuid = intent.getStringExtra("FOLDER_UUID")
+            val isElementCallback = intent.getBooleanExtra("IS_ELEMENT_CALLBACK", false)
+            if (isElementCallback) {
+                // Not supported yet directly returning to callback, we could broadcast
+            } else if (folderUuid != null) {
+                appsManager.addItemToFolder(folderUuid, elementId)
+            } else {
+                appsManager.addItem(elementId)
+            }
+            return START_NOT_STICKY
+        }
+        
         if (intent?.action == "SELECT_ELEMENT_FOR_HANDLE") {
             val prefix = intent.getStringExtra("handle_prefix") ?: return START_NOT_STICKY
             val gesture = intent.getStringExtra("gesture") ?: return START_NOT_STICKY

@@ -87,6 +87,13 @@ sealed class SidebarItem {
         override val id = "spacer:$uuid"
         override val label = "Spacer"
     }
+
+    data class IntentAction(
+        val componentStr: String,
+        override val label: String
+    ) : SidebarItem() {
+        override val id = "intent:$componentStr"
+    }
 }
 
 val ALL_SYSTEM_ACTIONS = listOf(
@@ -253,6 +260,13 @@ class SidebarAppsManager(
                 if (appInfo != null) {
                     result.add(SidebarItem.App(appInfo.packageName, appInfo.label))
                 }
+            } else if (id.startsWith("intent:")) {
+                val componentStr = id.substringAfter("intent:")
+                val pkg = componentStr.split("/").getOrNull(0) ?: ""
+                val cls = componentStr.split("/").getOrNull(1) ?: ""
+                val appInfo = allInstalledApps.find { it.packageName == pkg }
+                val label = if (appInfo != null) "${appInfo.label} - ${cls.substringAfterLast(".")}" else cls
+                result.add(SidebarItem.IntentAction(componentStr, label))
             } else if (id.startsWith("system:")) {
                 val action = id.substringAfter("system:")
                 val sysAction = ALL_SYSTEM_ACTIONS.find { it.action == action }

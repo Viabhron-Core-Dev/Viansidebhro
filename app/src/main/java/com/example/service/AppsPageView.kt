@@ -417,6 +417,17 @@ class AppsPageView(
                         }
                     }
                 }
+            } else if (item is SidebarItem.IntentAction) {
+                val pkg = item.componentStr.split("/").getOrNull(0) ?: ""
+                serviceScope.launch {
+                    val bitmap = manager.loadIcon(pkg)
+                    if (bitmap != null) {
+                        withContext(Dispatchers.Main) {
+                            icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            icon.setImageBitmap(bitmap)
+                        }
+                    }
+                }
             } else if (item is SidebarItem.SystemAction) {
                 icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 icon.setImageResource(item.iconResId)

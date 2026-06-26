@@ -29,7 +29,7 @@ sealed class AddElementItem {
 }
 
 enum class ActionType {
-    APP, SHORTCUT, FOLDER, LINK, EMPTY_ITEM,
+    APP, SHORTCUT, FOLDER, LINK, EMPTY_ITEM, INTENT,
     SYSTEM, VOLUME, MEDIA, BRIGHTNESS, SCREEN_TIMEOUT, SCREEN_ORIENTATION, WIDGET,
     SPECIFIC_SYSTEM_ACTION
 }
@@ -124,6 +124,7 @@ class AddElementOverlayView(
             // Special items
             items.add(AddElementItem.Header("Special items"))
             items.add(AddElementItem.Action(android.R.drawable.ic_menu_gallery, "Folder", "", ActionType.FOLDER))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_agenda, "Intent", "", ActionType.INTENT))
             items.add(AddElementItem.Action(android.R.drawable.ic_menu_set_as, "Link", "", ActionType.LINK))
             items.add(AddElementItem.Action(android.R.drawable.ic_menu_close_clear_cancel, "Empty item", "", ActionType.EMPTY_ITEM))
             
@@ -234,34 +235,23 @@ class AddElementOverlayView(
                 dialog.show()
             }
             ActionType.SHORTCUT -> {
-                val layout = android.widget.LinearLayout(context).apply {
-                    orientation = android.widget.LinearLayout.VERTICAL
-                    setPadding(50, 20, 50, 20)
+                val intent = android.content.Intent(context, com.example.ShortcutHandlerActivity::class.java).apply {
+                    putExtra("ACTION_TYPE", "PICK")
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-                val labelEt = android.widget.EditText(context).apply { hint = "Label" }
-                val intentEt = android.widget.EditText(context).apply { hint = "Intent URI (e.g. intent:#Intent;...)" }
-                layout.addView(labelEt)
-                layout.addView(intentEt)
-                val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
-                    .setTitle("New Shortcut")
-                    .setView(layout)
-                    .setPositiveButton("Add") { _, _ ->
-                        val url = intentEt.text.toString()
-                        val label = labelEt.text.toString().ifEmpty { "Shortcut" }
-                        if (url.isNotBlank()) {
-                            val uuid = java.util.UUID.randomUUID().toString()
-                            val json = org.json.JSONObject().apply {
-                                put("label", label)
-                                put("url", url)
-                            }
-                            addSidebarItem("link:$uuid:$json")
-                            close()
-                        }
-                    }
-                    .setNegativeButton("Cancel", null)
-                    .create()
-                dialog.window?.setType(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE)
-                dialog.show()
+                if (targetFolderUuid != null) {
+                    intent.putExtra("FOLDER_UUID", targetFolderUuid)
+                }
+                if (onElementSelected != null) {
+                    intent.putExtra("IS_ELEMENT_CALLBACK", true)
+                }
+                context.startActivity(intent)
+                close()
+            }
+            ActionType.INTENT -> {
+                val svc = (context as? FloatingReaderService)
+                svc?.showIntentPicker(targetFolderUuid, onElementSelected)
+                close()
             }
             ActionType.LINK -> {
                 val layout = android.widget.LinearLayout(context).apply {
