@@ -137,6 +137,13 @@ class FloatingReaderService : Service() {
                 }
                 updatePersistentNotification()
             }
+            "call_recorder_enabled" -> {
+                if (sharedPreferences.getBoolean("call_recorder_enabled", false)) {
+                    callRecorderManager?.startListening()
+                } else {
+                    callRecorderManager?.stopListening()
+                }
+            }
         }
     }
     
@@ -157,6 +164,7 @@ class FloatingReaderService : Service() {
     private var sidebarPagesList = mutableListOf<View>()
     private var sidebarDefaultIndex = 0
     private lateinit var appsManager: SidebarAppsManager
+    private var callRecorderManager: CallRecorderManager? = null
     private var appPickerOverlayView: AppPickerOverlayView? = null
     private var intentPickerOverlayView: IntentPickerOverlayView? = null
     private var addElementOverlayView: AddElementOverlayView? = null
@@ -232,7 +240,12 @@ class FloatingReaderService : Service() {
         mediaSession?.isActive = true
 
         if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK)
+            val foregroundServiceTypes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK or android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            } else {
+                android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            }
+            startForeground(1, notification, foregroundServiceTypes)
         } else {
             startForeground(1, notification)
         }
@@ -252,6 +265,9 @@ class FloatingReaderService : Service() {
         appsManager = SidebarAppsManager(this, prefs, serviceScope) {
             appsPageViews.forEach { it.updateData(appsManager.activeItems) }
         }
+        
+        callRecorderManager = CallRecorderManager(this, prefs)
+        callRecorderManager?.startListening()
         
         rebuildSidebarPages()
         appsManager.ensureLoaded()
@@ -2725,6 +2741,7 @@ class FloatingReaderService : Service() {
         }
         screenStateReceiver?.let { unregisterReceiver(it) }
         netSpeedManager?.stop()
+        callRecorderManager?.stopListening()
         instance = null
         sidebarView?.detach()
         sidebarView = null

@@ -76,13 +76,6 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
     }
     
     val pageConfigs = com.example.utils.PageManager.getPages(prefs)
-    val actions = mutableListOf<Pair<String, String>>()
-    actions.add("toggle_sidebar" to "Toggle Sidebar")
-    actions.add("toggle_reader" to "Toggle Reader")
-    pageConfigs.forEach { page ->
-        actions.add("open_page:${page.type}" to "Open Page: ${page.title}")
-    }
-    actions.add("select_element" to "Select Element...")
     
     val gestureLabels = mapOf(
         "tap" to "Single Tap",
@@ -163,7 +156,19 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
                 Text("No gestures assigned.", style = MaterialTheme.typography.bodyMedium, color = Color.Gray)
             } else {
                 gesturesMap.forEach { (gesture, action) ->
-                    val actionName = actions.find { it.first == action }?.second ?: action
+                    val actionName = when {
+                        action == "toggle_sidebar" -> "Default Sidebar Page"
+                        action == "toggle_reader" -> "Toggle Reader"
+                        action.startsWith("open_page:") -> {
+                            val type = action.removePrefix("open_page:")
+                            "Page: " + (pageConfigs.find { it.type == type }?.title ?: type)
+                        }
+                        action.startsWith("open_element:") -> {
+                            val el = action.removePrefix("open_element:")
+                            "Element: " + el
+                        }
+                        else -> action
+                    }
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Row(modifier = Modifier.padding(16.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                             Column(modifier = Modifier.weight(1f)) {
@@ -193,7 +198,14 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
     
     if (showAddGestureDialog) {
         var selectedGesture by remember { mutableStateOf(gestureKeys.first { !gesturesMap.containsKey(it) } ?: gestureKeys.first()) }
-        var selectedAction by remember { mutableStateOf(actions.first().first) }
+        
+        val categoryOptions = listOf(
+            "sidebar" to "Default Sidebar Page",
+            "page" to "Page",
+            "element" to "Open Element"
+        )
+        var selectedCategory by remember { mutableStateOf("sidebar") }
+        var selectedPageType by remember { mutableStateOf(if (pageConfigs.isNotEmpty()) pageConfigs.first().type else "") }
         
         AlertDialog(
             onDismissRequest = { showAddGestureDialog = false },
@@ -202,22 +214,38 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
                 Column {
                     ActionDropdown("Select Gesture", selectedGesture, gestureKeys.filter { !gesturesMap.containsKey(it) }.map { it to (gestureLabels[it] ?: it) }) { selectedGesture = it }
                     Spacer(modifier = Modifier.height(8.dp))
-                    ActionDropdown("Select Action", selectedAction, actions) { selectedAction = it }
+                    ActionDropdown("Action Type", selectedCategory, categoryOptions) { selectedCategory = it }
+                    
+                    if (selectedCategory == "page") {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        if (pageConfigs.isEmpty()) {
+                            Text("No pages available.", color = Color.Red)
+                        } else {
+                            val pageOptions = pageConfigs.map { it.type to it.title }
+                            ActionDropdown("Select Page", selectedPageType, pageOptions) { selectedPageType = it }
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    if (selectedAction == "select_element") {
+                    if (selectedCategory == "sidebar") {
+                        updateGesture(selectedGesture, "toggle_sidebar")
+                        showAddGestureDialog = false
+                    } else if (selectedCategory == "page") {
+                        if (selectedPageType.isNotEmpty()) {
+                            updateGesture(selectedGesture, "open_page:$selectedPageType")
+                            showAddGestureDialog = false
+                        }
+                    } else if (selectedCategory == "element") {
                         val intent = android.content.Intent(context, com.example.service.FloatingReaderService::class.java).apply {
                             action = "SELECT_ELEMENT_FOR_HANDLE"
                             putExtra("handle_prefix", prefix)
                             putExtra("gesture", selectedGesture)
                         }
                         context.startService(intent)
-                    } else {
-                        updateGesture(selectedGesture, selectedAction)
+                        showAddGestureDialog = false
                     }
-                    showAddGestureDialog = false
                 }) {
                     Text("Add")
                 }

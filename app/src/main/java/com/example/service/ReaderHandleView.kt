@@ -112,7 +112,11 @@ class ReaderHandleView(
 
         val density = context.resources.displayMetrics.density
         val w = prefs.getInt("${prefix}width", 16)
-        val h = prefs.getInt("${prefix}height", 60)
+        var h = prefs.getInt("${prefix}height", 60)
+        
+        if (context.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            h /= 2
+        }
         
         val widthPx = (w * density).toInt()
         val heightPx = (h * density).toInt()
@@ -258,7 +262,11 @@ class ReaderHandleView(
     fun updatePosition() {
         val density = context.resources.displayMetrics.density
         val w = prefs.getInt("${prefix}width", 16)
-        val h = prefs.getInt("${prefix}height", 60)
+        var h = prefs.getInt("${prefix}height", 60)
+        
+        if (context.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE) {
+            h /= 2
+        }
         
         layoutParams.width = (w * density).toInt()
         layoutParams.height = (h * density).toInt()
@@ -271,5 +279,10 @@ class ReaderHandleView(
             windowManager.updateViewLayout(this, layoutParams)
         }
         invalidate()
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updatePosition()
     }
 }

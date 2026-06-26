@@ -61,6 +61,7 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
                     onNavigateToData = { currentRoute = "data" },
                     onNavigateToPages = { currentRoute = "pages" },
                     onNavigateToHandles = { currentRoute = "handles" },
+                    onNavigateToCallRecorder = { currentRoute = "call_recorder" },
                     onBack = onFinish
                 )
                 "reader" -> ReaderSettingsScreen(
@@ -82,6 +83,9 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
                     onNavigateToHandle = { currentRoute = "handle_$it" },
                     onBack = { currentRoute = "main" }
                 )
+                "call_recorder" -> CallRecorderSettingsScreen(
+                    onBack = { currentRoute = "main" }
+                )
             }
             if (currentRoute.startsWith("handle_")) {
                 val handleId = currentRoute.removePrefix("handle_")
@@ -96,7 +100,7 @@ fun SettingsApp(startRoute: String, onFinish: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -> Unit, onNavigateToNetSpeed: () -> Unit, onNavigateToData: () -> Unit, onNavigateToPages: () -> Unit, onNavigateToHandles: () -> Unit, onBack: () -> Unit) {
+fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -> Unit, onNavigateToNetSpeed: () -> Unit, onNavigateToData: () -> Unit, onNavigateToPages: () -> Unit, onNavigateToHandles: () -> Unit, onNavigateToCallRecorder: () -> Unit, onBack: () -> Unit) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
@@ -131,6 +135,12 @@ fun MainSettingsScreen(onNavigateToReader: () -> Unit, onNavigateToGeneral: () -
                     headlineContent = { Text("NetSpeed Indicator Settings") },
                     supportingContent = { Text("Toggle, units, and data usage statistics") },
                     modifier = Modifier.clickable { onNavigateToNetSpeed() }
+                )
+                Divider()
+                ListItem(
+                    headlineContent = { Text("Call Recorder Settings") },
+                    supportingContent = { Text("Automatic call recording & privacy") },
+                    modifier = Modifier.clickable { onNavigateToCallRecorder() }
                 )
                 Divider()
                 ListItem(
