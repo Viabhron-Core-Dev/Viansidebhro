@@ -87,6 +87,12 @@ class TriggerHandleView(
             onTriggerTapped()
         } else if (action == "toggle_reader") {
             FloatingReaderService.instance?.toggleReader()
+        } else if (action.startsWith("open_page:")) {
+            val pageType = action.removePrefix("open_page:")
+            FloatingReaderService.instance?.openSidebarPage(pageType)
+        } else if (action.startsWith("open_element:")) {
+            val elementId = action.removePrefix("open_element:")
+            FloatingReaderService.instance?.executeElementAction(elementId)
         } else if (action.startsWith("open_")) {
             val pageType = action.removePrefix("open_")
             FloatingReaderService.instance?.openSidebarPage(pageType)

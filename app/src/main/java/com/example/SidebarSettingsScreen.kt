@@ -17,7 +17,10 @@ import com.example.utils.PageManager
 import com.example.utils.SidebarPage
 import java.util.UUID
 
-@OptIn(ExperimentalMaterial3Api::class)
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SidebarSettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
@@ -173,17 +176,21 @@ fun SidebarSettingsScreen(onBack: () -> Unit) {
             
             itemsIndexed(pages) { index, page ->
                 ListItem(
-                    headlineContent = { Text(page.title) },
-                    supportingContent = { Text(page.type.replace("_", " ").capitalize()) },
-                    leadingContent = {
-                        RadioButton(
-                            selected = index == defaultIndex,
-                            onClick = {
-                                defaultIndex = index
+                    modifier = Modifier.combinedClickable(
+                        onClick = { },
+                        onLongClick = {
+                            if (index > 0 && pages.size > 1) {
+                                val newPages = pages.toMutableList()
+                                newPages.removeAt(index)
+                                if (defaultIndex == index) defaultIndex = 0
+                                else if (defaultIndex > index) defaultIndex--
+                                pages = newPages
                                 savePages()
                             }
-                        )
-                    },
+                        }
+                    ),
+                    headlineContent = { Text(page.title) },
+                    supportingContent = { Text(page.type.replace("_", " ").capitalize()) },
                     trailingContent = {
                         Row {
                             IconButton(onClick = {
@@ -213,18 +220,6 @@ fun SidebarSettingsScreen(onBack: () -> Unit) {
                                 }
                             }, enabled = index > 0 && index < pages.size - 1) {
                                 Icon(Icons.Default.ArrowDownward, "Down")
-                            }
-                            IconButton(onClick = {
-                                if (index > 0 && pages.size > 1) {
-                                    val newPages = pages.toMutableList()
-                                    newPages.removeAt(index)
-                                    if (defaultIndex == index) defaultIndex = 0
-                                    else if (defaultIndex > index) defaultIndex--
-                                    pages = newPages
-                                    savePages()
-                                }
-                            }, enabled = index > 0 && pages.size > 1) {
-                                Icon(Icons.Default.Delete, "Del")
                             }
                         }
                     }

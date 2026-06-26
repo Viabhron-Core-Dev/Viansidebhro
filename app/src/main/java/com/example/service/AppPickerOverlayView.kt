@@ -30,6 +30,7 @@ class AppPickerOverlayView(
     private val serviceScope: CoroutineScope,
     private val windowManager: WindowManager,
     private val targetFolderUuid: String? = null,
+    private val onAppSelected: ((String) -> Unit)? = null,
     private val onClose: () -> Unit
 ) : FrameLayout(context) {
 
@@ -142,7 +143,9 @@ class AppPickerOverlayView(
             icon.setImageDrawable(null)
             
             itemView.setOnClickListener {
-                if (targetFolderUuid != null) {
+                if (onAppSelected != null) {
+                    onAppSelected.invoke("app:${appInfo.packageName}")
+                } else if (targetFolderUuid != null) {
                     manager.addItemToFolder(targetFolderUuid, "app:${appInfo.packageName}")
                 } else {
                     manager.addItem("app:${appInfo.packageName}")

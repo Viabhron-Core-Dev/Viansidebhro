@@ -37,8 +37,23 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
     
     DisposableEffect(Unit) {
         prefs.edit().putBoolean("is_handle_edit_mode", true).apply()
+        
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { sharedPreferences, key ->
+            if (key != null && key.startsWith(prefix) && gestureKeys.any { key == "$prefix$it" }) {
+                val gesture = key.removePrefix(prefix)
+                val action = sharedPreferences.getString(key, "none") ?: "none"
+                if (action == "none") {
+                    gesturesMap.remove(gesture)
+                } else {
+                    gesturesMap[gesture] = action
+                }
+            }
+        }
+        prefs.registerOnSharedPreferenceChangeListener(listener)
+        
         onDispose {
             prefs.edit().putBoolean("is_handle_edit_mode", false).apply()
+            prefs.unregisterOnSharedPreferenceChangeListener(listener)
         }
     }
     
@@ -60,22 +75,14 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
         prefs.edit().putString("${prefix}$gesture", action).apply()
     }
     
-    val actions = listOf(
-        "toggle_sidebar" to "Toggle Sidebar",
-        "toggle_reader" to "Toggle Reader",
-        "open_apps" to "Open Apps Page",
-        "open_scheduler" to "Open Scheduler",
-        "open_calculator" to "Open Calculator",
-        "open_compass" to "Open Compass",
-        "action_home" to "System: Home",
-        "action_back" to "System: Back",
-        "action_recents" to "System: Recents",
-        "action_notifications" to "System: Notifications",
-        "action_quick_settings" to "System: Quick Settings",
-        "action_power_dialog" to "System: Power Dialog",
-        "action_lock_screen" to "System: Lock Screen",
-        "action_screenshot" to "System: Screenshot"
-    )
+    val pageConfigs = com.example.utils.PageManager.getPages(prefs)
+    val actions = mutableListOf<Pair<String, String>>()
+    actions.add("toggle_sidebar" to "Toggle Sidebar")
+    actions.add("toggle_reader" to "Toggle Reader")
+    pageConfigs.forEach { page ->
+        actions.add("open_page:${page.type}" to "Open Page: ${page.title}")
+    }
+    actions.add("select_element" to "Select Element...")
     
     val gestureLabels = mapOf(
         "tap" to "Single Tap",
@@ -200,7 +207,16 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    updateGesture(selectedGesture, selectedAction)
+                    if (selectedAction == "select_element") {
+                        val intent = android.content.Intent(context, com.example.service.FloatingReaderService::class.java).apply {
+                            action = "SELECT_ELEMENT_FOR_HANDLE"
+                            putExtra("handle_prefix", prefix)
+                            putExtra("gesture", selectedGesture)
+                        }
+                        context.startService(intent)
+                    } else {
+                        updateGesture(selectedGesture, selectedAction)
+                    }
                     showAddGestureDialog = false
                 }) {
                     Text("Add")

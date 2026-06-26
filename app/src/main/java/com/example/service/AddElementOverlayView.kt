@@ -41,7 +41,8 @@ class AddElementOverlayView(
     private val windowManager: WindowManager,
     private val targetFolderUuid: String? = null,
     private val onClose: () -> Unit,
-    private val onAppSelected: (String?) -> Unit
+    private val onAppSelected: (String?) -> Unit,
+    private val onElementSelected: ((String) -> Unit)? = null
 ) : FrameLayout(context) {
 
     private val layoutParams: WindowManager.LayoutParams
@@ -159,6 +160,10 @@ class AddElementOverlayView(
     }
 
     private fun addSidebarItem(itemId: String) {
+        if (onElementSelected != null) {
+            onElementSelected.invoke(itemId)
+            return
+        }
         if (targetFolderUuid != null) {
             manager.addItemToFolder(targetFolderUuid, itemId)
         } else {

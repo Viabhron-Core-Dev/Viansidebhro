@@ -510,6 +510,11 @@ class FloatingReaderService : Service() {
                 onAddClicked = { showSidebarEditOverlay() },
                 onClose = { sidebarView?.detach() }
             )
+            serviceLifecycleOwner?.let {
+                sidebarView?.setViewTreeLifecycleOwner(it)
+                sidebarView?.setViewTreeViewModelStoreOwner(it)
+                sidebarView?.setViewTreeSavedStateRegistryOwner(it)
+            }
             val defaultPage = sidebarPagesList.getOrNull(sidebarDefaultIndex)
             if (defaultPage is AppsPageView) {
                 sidebarView?.updateHeight((defaultPage).getCurrentHeightPx())
@@ -553,6 +558,23 @@ class FloatingReaderService : Service() {
         addElementOverlayView?.attach()
     }
 
+    fun showAddElementOverlayForSelection(onElementSelected: (String) -> Unit) {
+        addElementOverlayView?.detach()
+        addElementOverlayView = AddElementOverlayView(
+            this, appsManager, windowManager, null,
+            onClose = { addElementOverlayView?.detach() },
+            onAppSelected = { _ -> 
+                addElementOverlayView?.detach()
+                showAppPickerForSelection(onElementSelected) 
+            },
+            onElementSelected = { id ->
+                addElementOverlayView?.detach()
+                onElementSelected(id)
+            }
+        )
+        addElementOverlayView?.attach()
+    }
+
     private fun showAppPicker(targetFolderUuid: String? = null) {
         appPickerOverlayView?.detach()
         appPickerOverlayView = AppPickerOverlayView(this, appsManager, serviceScope, windowManager, targetFolderUuid) {
@@ -561,7 +583,87 @@ class FloatingReaderService : Service() {
         appPickerOverlayView?.attach()
     }
 
+    private fun showAppPickerForSelection(onElementSelected: (String) -> Unit) {
+        appPickerOverlayView?.detach()
+        appPickerOverlayView = AppPickerOverlayView(this, appsManager, serviceScope, windowManager, null, onAppSelected = { id ->
+            appPickerOverlayView?.detach()
+            onElementSelected(id)
+        }) {
+            appPickerOverlayView?.detach()
+        }
+        appPickerOverlayView?.attach()
+    }
+
+    fun executeElementAction(id: String) {
+        if (id.startsWith("app:")) {
+            val pkg = id.removePrefix("app:")
+            val launchIntent = packageManager.getLaunchIntentForPackage(pkg)
+            if (launchIntent != null) {
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                try { startActivity(launchIntent) } catch (e: Exception) {}
+            }
+        } else if (id.startsWith("system:")) {
+            val action = id.removePrefix("system:")
+            if (action == "log_keeper") {
+                val intent = Intent(this, com.example.LogKeeperActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+            } else if (action == "ebook_reader") {
+                val intent = Intent(this, FloatingReaderService::class.java)
+                intent.putExtra("UNFOLD", true)
+                startService(intent)
+            } else if (action == "settings") {
+                val intent = Intent(this, com.example.SettingsActivity::class.java)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(intent)
+            } else {
+                val service = VianSideAccessibilityService.instance
+                if (service != null && service.performAction(action)) {
+                    // success
+                } else {
+                    android.widget.Toast.makeText(this, "Please enable VianSide Accessibility Service", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            }
+        } else if (id.startsWith("volume:")) {
+            val actionId = id.removePrefix("volume:")
+            try {
+                val streamStr = actionId.split("_")[0]
+                val actionStr = actionId.split("_")[1]
+                MediaVolumeHandler.handleVolumeAction(this, streamStr, actionStr)
+            } catch (e: Exception) {}
+        } else if (id.startsWith("media:")) {
+            val actionId = id.removePrefix("media:")
+            MediaVolumeHandler.handleMediaAction(this, actionId)
+        } else if (id.startsWith("display:")) {
+            val actionId = id.removePrefix("display:")
+            DisplayHandler.handleDisplayAction(this, actionId)
+        } else if (id.startsWith("shortcut:")) {
+            try {
+                val parts = id.split(":", limit = 3)
+                val jsonStr = parts[2]
+                val obj = org.json.JSONObject(jsonStr)
+                val url = obj.getString("url")
+                val launchIntent = if (url.startsWith("intent:")) {
+                    Intent.parseUri(url, Intent.URI_INTENT_SCHEME)
+                } else {
+                    Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                }
+                launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(launchIntent)
+            } catch (e: Exception) {}
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "SELECT_ELEMENT_FOR_HANDLE") {
+            val prefix = intent.getStringExtra("handle_prefix") ?: return START_NOT_STICKY
+            val gesture = intent.getStringExtra("gesture") ?: return START_NOT_STICKY
+            showAddElementOverlayForSelection { selectedId ->
+                prefs.edit().putString("${prefix}$gesture", "open_element:$selectedId").apply()
+            }
+            return START_NOT_STICKY
+        }
+        
         val bookId = intent?.getIntExtra("BOOK_ID", -1) ?: -1
         val fromLauncher = intent?.getBooleanExtra("OPEN_FROM_LAUNCHER", false) ?: false
         val unfold = intent?.getBooleanExtra("UNFOLD", false) ?: false
