@@ -7,6 +7,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -23,6 +24,17 @@ fun CallRecorderSettingsScreen(onBack: () -> Unit) {
 
     var enabled by remember { mutableStateOf(prefs.getBoolean("call_recorder_enabled", false)) }
     var audioSource by remember { mutableStateOf(prefs.getInt("call_recorder_audio_source", MediaRecorder.AudioSource.VOICE_RECOGNITION)) }
+    var format by remember { mutableStateOf(prefs.getString("call_recorder_format", "MPEG_4") ?: "MPEG_4") }
+    var quality by remember { mutableStateOf(prefs.getInt("call_recorder_quality", 128000)) }
+    var saveFolder by remember { mutableStateOf(prefs.getString("call_recorder_save_folder", "") ?: "") }
+
+    val safLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) {
+            context.contentResolver.takePersistableUriPermission(uri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+            saveFolder = uri.toString()
+            prefs.edit().putString("call_recorder_save_folder", uri.toString()).apply()
+        }
+    }
 
     val permissions = arrayOf(
         Manifest.permission.RECORD_AUDIO,
@@ -102,6 +114,56 @@ fun CallRecorderSettingsScreen(onBack: () -> Unit) {
                     }
                 }
                 
+                Divider()
+                
+                Text(
+                    text = "Format & Quality",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.padding(16.dp, 16.dp, 16.dp, 8.dp)
+                )
+
+                val formats = listOf("MPEG_4" to "MP3 / AAC (MPEG-4)", "THREE_GPP" to "WAV / AMR (3GPP)")
+                formats.forEach { (formatValue, title) ->
+                    Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable {
+                            format = formatValue
+                            prefs.edit().putString("call_recorder_format", formatValue).apply()
+                        }
+                    ) {
+                        RadioButton(selected = format == formatValue, onClick = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(title)
+                    }
+                }
+
+                val qualities = listOf(64000 to "Low (64 kbps)", 128000 to "Medium (128 kbps)", 256000 to "High (256 kbps)")
+                qualities.forEach { (qualityValue, title) ->
+                    Row(
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp).clickable {
+                            quality = qualityValue
+                            prefs.edit().putInt("call_recorder_quality", qualityValue).apply()
+                        }
+                    ) {
+                        RadioButton(selected = quality == qualityValue, onClick = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(title)
+                    }
+                }
+
+                Divider()
+
+                ListItem(
+                    headlineContent = { Text("Save Folder") },
+                    supportingContent = { Text(if (saveFolder.isEmpty()) "Default (Music/.Records)" else android.net.Uri.parse(saveFolder).path ?: "Custom Folder") },
+                    trailingContent = {
+                        Button(onClick = { safLauncher.launch(null) }) {
+                            Text("Change")
+                        }
+                    }
+                )
+
                 Divider()
                 
                 Text(
