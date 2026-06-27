@@ -586,7 +586,7 @@ Scope: Selective recording rules checked before recording starts.
 - Filter decision logged to running log
 - Goal: unwanted calls never recorded, filter applied before mic ever activates
 
-### Phase F21 — Manual Floating Record Button
+### Phase F21 — Manual Floating Record Button (IMPLEMENTED)
 Scope: Manual recording trigger visible only during active calls.
 - Small Standard View floating button via WindowManager TYPE_APPLICATION_OVERLAY
 - Draggable, default position: bottom right, saves position to SharedPreferences
@@ -599,7 +599,7 @@ Scope: Manual recording trigger visible only during active calls.
 - Shows "REC" label or record icon — clearly legible
 - Goal: button appears only during calls, manual record works, zero presence between calls
 
-### Phase F22 — Recordings List
+### Phase F22 — Recordings List (IMPLEMENTED)
 Scope: Browse, search, play, and manage recordings.
 - RecordingsActivity (Compose):
   - Scans save folder on open — not continuously watched
@@ -617,7 +617,7 @@ Scope: Browse, search, play, and manage recordings.
 - Accessible from sidebar element and MainActivity
 - Goal: recordings browseable, searchable, playable, deletable, shareable
 
-### Phase F23 — PIN Lock on Recordings
+### Phase F23 — PIN Lock on Recordings (IMPLEMENTED)
 Scope: Privacy protection for recordings list.
 - Toggle in settings: "Enable PIN lock on recordings"
 - 4-digit PIN, stored as SHA-256 hash in SharedPreferences — never plain text

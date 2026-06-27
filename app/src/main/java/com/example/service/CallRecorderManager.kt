@@ -18,6 +18,10 @@ import java.util.Locale
 import androidx.documentfile.provider.DocumentFile
 import android.net.Uri
 import android.os.ParcelFileDescriptor
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.provider.ContactsContract
 
 class CallRecorderManager(private val context: Context, private val prefs: SharedPreferences) {
 
@@ -26,13 +30,47 @@ class CallRecorderManager(private val context: Context, private val prefs: Share
     private var isRecording = false
     private var currentRecordFile: File? = null
     private var currentRecordPfd: ParcelFileDescriptor? = null
+    private var lastPhoneNumber: String? = null
+    private val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as android.view.WindowManager
+    private var recordButtonView: FloatingRecordButtonView? = null
 
     private var phoneStateListener: PhoneStateListener? = null
     private var telephonyCallback: TelephonyCallback? = null
+    
+    private val phoneStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context, intent: Intent) {
+            if (intent.action == TelephonyManager.ACTION_PHONE_STATE_CHANGED) {
+                val number = intent.getStringExtra(TelephonyManager.EXTRA_INCOMING_NUMBER)
+                val stateStr = intent.getStringExtra(TelephonyManager.EXTRA_STATE)
+                if (number != null) {
+                    lastPhoneNumber = number
+                }
+                if (stateStr == TelephonyManager.EXTRA_STATE_IDLE) {
+                    lastPhoneNumber = null
+                }
+            } else if (intent.action == Intent.ACTION_NEW_OUTGOING_CALL) {
+                val number = intent.getStringExtra(Intent.EXTRA_PHONE_NUMBER)
+                if (number != null) {
+                    lastPhoneNumber = number
+                }
+            }
+        }
+    }
 
-    @SuppressLint("MissingPermission")
+    @SuppressLint("MissingPermission", "UnspecifiedRegisterReceiverFlag")
     fun startListening() {
-        if (!prefs.getBoolean("call_recorder_enabled", false)) return
+        val autoEnabled = prefs.getBoolean("call_recorder_enabled", false)
+        val manualEnabled = prefs.getBoolean("call_recorder_manual_enabled", false)
+        if (!autoEnabled && !manualEnabled) return
+
+        val filter = IntentFilter()
+        filter.addAction(TelephonyManager.ACTION_PHONE_STATE_CHANGED)
+        filter.addAction(Intent.ACTION_NEW_OUTGOING_CALL)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(phoneStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context.registerReceiver(phoneStateReceiver, filter)
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             telephonyCallback = object : TelephonyCallback(), TelephonyCallback.CallStateListener {
@@ -65,6 +103,9 @@ class CallRecorderManager(private val context: Context, private val prefs: Share
 
     fun stopListening() {
         try {
+            context.unregisterReceiver(phoneStateReceiver)
+        } catch (e: Exception) {}
+        try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 telephonyCallback?.let { telephonyManager.unregisterTelephonyCallback(it) }
             } else {
@@ -77,23 +118,94 @@ class CallRecorderManager(private val context: Context, private val prefs: Share
         stopRecording()
     }
 
+    private fun isContact(phoneNumber: String): Boolean {
+        if (phoneNumber.isEmpty()) return false
+        try {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(phoneNumber))
+            val projection = arrayOf(ContactsContract.PhoneLookup._ID)
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                return cursor.moveToFirst()
+            }
+        } catch (e: Exception) {
+            Log.e("CallRecorder", "Failed to check contact", e)
+        }
+        return false
+    }
+
+    private fun shouldRecordCall(): Boolean {
+        val filterMode = prefs.getString("call_recorder_filter_mode", "all") ?: "all"
+        if (filterMode == "all") return true
+        
+        val number = lastPhoneNumber ?: ""
+        
+        when (filterMode) {
+            "non_contacts" -> {
+                return !isContact(number)
+            }
+            "whitelist" -> {
+                val whitelist = prefs.getStringSet("call_recorder_whitelist", emptySet()) ?: emptySet()
+                return whitelist.contains(number) || whitelist.any { number.contains(it) }
+            }
+            "blacklist" -> {
+                val blacklist = prefs.getStringSet("call_recorder_blacklist", emptySet()) ?: emptySet()
+                return !(blacklist.contains(number) || blacklist.any { number.contains(it) })
+            }
+        }
+        return true
+    }
+
     private fun handleCallState(state: Int, phoneNumber: String?) {
-        if (!prefs.getBoolean("call_recorder_enabled", false)) {
+        if (phoneNumber != null) {
+            lastPhoneNumber = phoneNumber
+        }
+        val autoEnabled = prefs.getBoolean("call_recorder_enabled", false)
+        val manualEnabled = prefs.getBoolean("call_recorder_manual_enabled", false)
+
+        if (!autoEnabled && !manualEnabled) {
             stopRecording()
+            hideManualButton()
             return
         }
 
         when (state) {
             TelephonyManager.CALL_STATE_OFFHOOK -> {
-                startRecording()
+                if (manualEnabled) {
+                    showManualButton()
+                }
+                if (autoEnabled && shouldRecordCall()) {
+                    startRecording()
+                } else if (autoEnabled) {
+                    com.example.LogKeeper.writeLog("CallRecorder", "Call ignored due to filter rule")
+                }
             }
             TelephonyManager.CALL_STATE_IDLE -> {
                 stopRecording()
+                hideManualButton()
+                lastPhoneNumber = null
             }
             TelephonyManager.CALL_STATE_RINGING -> {
                 // Not recording yet
             }
         }
+    }
+
+    private fun showManualButton() {
+        if (recordButtonView == null) {
+            recordButtonView = FloatingRecordButtonView(context, prefs, windowManager) {
+                if (isRecording) {
+                    stopRecording()
+                } else {
+                    startRecording()
+                }
+            }
+        }
+        recordButtonView?.attach()
+        recordButtonView?.setRecordingState(isRecording)
+    }
+
+    private fun hideManualButton() {
+        recordButtonView?.detach()
+        recordButtonView = null
     }
 
     private fun startRecording() {
@@ -168,6 +280,7 @@ class CallRecorderManager(private val context: Context, private val prefs: Share
                 start()
             }
             isRecording = true
+            recordButtonView?.setRecordingState(true)
             val savePath = currentRecordFile?.absolutePath ?: "SAF Directory"
             Log.d("CallRecorder", "Started recording to $savePath")
             com.example.LogKeeper.writeLog("CallRecorder", "Started recording to $savePath")
@@ -200,6 +313,7 @@ class CallRecorderManager(private val context: Context, private val prefs: Share
             currentRecordPfd = null
             mediaRecorder = null
             isRecording = false
+            recordButtonView?.setRecordingState(false)
         }
     }
 }
