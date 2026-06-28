@@ -1,9 +1,13 @@
 package com.example
 
 import android.content.Context
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -123,15 +127,38 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
                 prefs.edit().putInt("${prefix}height", it.toInt()).apply()
             }, valueRange = 20f..300f)
             
-            OutlinedTextField(
-                value = colorHex,
-                onValueChange = { 
-                    colorHex = it
-                    prefs.edit().putString("${prefix}color", it).apply()
-                },
-                label = { Text("Color (AARRGGBB hex)") },
-                modifier = Modifier.fillMaxWidth()
-            )
+            Text("Handle Color:")
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                val presetColors = listOf(
+                    "#44102d42", "#3318304A", "#66000000", "#66FFFFFF", 
+                    "#80FF5252", "#804CAF50", "#802196F3", "#80FFEB3B"
+                )
+                presetColors.forEach { colorString ->
+                    val parsedColor = try {
+                        Color(android.graphics.Color.parseColor(colorString))
+                    } catch (e: Exception) {
+                        Color.Gray
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(parsedColor, CircleShape)
+                            .border(
+                                width = if (colorHex == colorString) 2.dp else 1.dp,
+                                color = if (colorHex == colorString) MaterialTheme.colorScheme.primary else Color.Gray,
+                                shape = CircleShape
+                            )
+                            .clickable {
+                                colorHex = colorString
+                                prefs.edit().putString("${prefix}color", colorString).apply()
+                            }
+                    )
+                }
+            }
             
             Spacer(modifier = Modifier.height(8.dp))
             Text("Shape:")

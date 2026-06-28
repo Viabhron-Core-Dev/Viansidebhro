@@ -1155,7 +1155,32 @@ class FloatingReaderService : Service() {
                      btnUp?.visibility = if (currentExplorerDir?.absolutePath == rootExplorerDir?.absolutePath) View.GONE else View.VISIBLE
                      
                      listLibrary?.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@FloatingReaderService)
-                     listLibrary?.adapter = FileAdapter(sortedFiles)
+                     listLibrary?.adapter = FileAdapter(
+        sortedFiles,
+        { file -> 
+            explorerStack.add(file)
+            saveLibraryState()
+            loadLibraryBooks()
+        },
+        { file ->
+            showToast("Importing ${file.name}...")
+            serviceScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val repo = com.example.data.LibraryRepository(this@FloatingReaderService)
+                val book = repo.importBook(android.net.Uri.fromFile(file))
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    if (book != null) {
+                        loadBook(book.id)
+                        hideOverlays()
+                    } else {
+                        showToast("Failed to import")
+                    }
+                }
+            }
+        },
+        { file -> showExplorerContextMenu(file) },
+        { file -> loadEpubCover(file) },
+        serviceScope
+    )
                  }
              }
              return
@@ -1172,7 +1197,28 @@ class FloatingReaderService : Service() {
             }
             withContext(Dispatchers.Main) {
                 listLibrary?.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this@FloatingReaderService)
-                listLibrary?.adapter = LibraryAdapter(books)
+                listLibrary?.adapter = LibraryAdapter(
+        books,
+        { book ->
+            if (book.isParsed) {
+                loadBook(book.id)
+                hideOverlays()
+            } else {
+                showToast("Book is still parsing...")
+            }
+        },
+        { book ->
+            serviceScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+                val db = com.example.data.AppDatabase.getDatabase(this@FloatingReaderService)
+                db.epubDao().deleteBook(book)
+                // Just reload the library entirely
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                    loadLibraryBooks()
+                }
+            }
+            showToast("Deleted ${book.title}")
+        }
+    )
             }
         }
     }
@@ -1351,7 +1397,19 @@ class FloatingReaderService : Service() {
 
         currentBook?.totalChapters?.let { count ->
             listChapters?.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
-            listChapters?.adapter = ChapterAdapter(count)
+            listChapters?.adapter = ChapterAdapter(
+        count,
+        currentChapterIndex,
+        { pos ->
+            saveCurrentPosition()
+            currentChapterIndex = pos
+            currentBook?.let { book ->
+                currentBook = book.copy(lastReadChapter = pos, lastReadScrollY = 0)
+            }
+            loadChapterText()
+            hideOverlays()
+        }
+    )
             listChapters?.scrollToPosition(currentChapterIndex)
         }
         syncWindowStates()
@@ -1463,7 +1521,11 @@ class FloatingReaderService : Service() {
         overlayBookmarks?.visibility = View.VISIBLE
         toolbarContainer.visibility = View.GONE
         listBookmarks?.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
-        listBookmarks?.adapter = BookmarkAdapter()
+        listBookmarks?.adapter = BookmarkAdapter(
+        bookmarksList,
+        { chapter, offset -> loadAndJumpToOffset(chapter, offset) },
+        { floatingView.findViewById<android.view.View>(com.example.R.id.overlay_bookmarks)?.visibility = android.view.View.GONE }
+    )
         syncWindowStates()
     }
 
@@ -2070,99 +2132,7 @@ class FloatingReaderService : Service() {
 
 
 
-    private inner class FileAdapter(var files: List<java.io.File>) : androidx.recyclerview.widget.RecyclerView.Adapter<FileAdapter.FileViewHolder>() {
-        
-        inner class FileViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
-            val ivIcon: ImageView = view.findViewById(R.id.iv_file_icon)
-            val tvName: TextView = view.findViewById(R.id.tv_file_name)
-            val tvSize: TextView = view.findViewById(R.id.tv_file_size)
-
-            init {
-                view.setOnClickListener {
-                    val pos = adapterPosition
-                    if (pos != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
-                        val file = files[pos]
-                        if (file.isDirectory) {
-                            explorerStack.add(file)
-                            saveLibraryState()
-                            loadLibraryBooks()
-                        } else {
-                            // Try importing it if not already in db, then open
-                            showToast("Importing ${file.name}...")
-                            serviceScope.launch(Dispatchers.IO) {
-                                val repo = com.example.data.LibraryRepository(this@FloatingReaderService)
-                                val book = repo.importBook(Uri.fromFile(file))
-                                withContext(Dispatchers.Main) {
-                                    if (book != null) {
-                                        loadBook(book.id)
-                                        hideOverlays()
-                                    } else {
-                                        showToast("Failed to import")
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                
-                view.setOnLongClickListener {
-                    val pos = adapterPosition
-                    if (pos != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
-                        val file = files[pos]
-                        showExplorerContextMenu(file)
-                    }
-                    true
-                }
-            }
-        }
-
-        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): FileViewHolder {
-            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_file_explorer, parent, false)
-            return FileViewHolder(view)
-        }
-
-        override fun onBindViewHolder(holder: FileViewHolder, position: Int) {
-            val file = files[position]
-            holder.tvName.text = file.name ?: "Unknown"
-            
-            // clear previous tag
-            holder.ivIcon.tag = null
-            
-            if (file.isDirectory) {
-                holder.ivIcon.setImageResource(android.R.drawable.ic_menu_agenda)
-                holder.ivIcon.setColorFilter(android.graphics.Color.parseColor("#FFD54F")) // Folder color
-                holder.tvSize.visibility = View.GONE
-            } else {
-                holder.ivIcon.setImageResource(android.R.drawable.ic_menu_sort_by_size)
-                holder.ivIcon.setColorFilter(android.graphics.Color.parseColor("#7FE9F9")) // File color
-                holder.tvSize.visibility = View.VISIBLE
-                
-                val ext = file.extension.uppercase()
-                val sizeBytes = file.length()
-                val sizeText = when {
-                    sizeBytes > 1024 * 1024 -> String.format("%.2f MB", sizeBytes / (1024f * 1024f))
-                    sizeBytes > 1024 -> String.format("%.1f KB", sizeBytes / 1024f)
-                    else -> "$sizeBytes B"
-                }
-                holder.tvSize.text = if (ext.isNotEmpty()) "$ext • $sizeText" else sizeText
-                
-                if (file.name.endsWith(".epub", true)) {
-                    holder.ivIcon.tag = file.absolutePath
-                    serviceScope.launch(Dispatchers.IO) {
-                        val bitmap = loadEpubCover(file)
-                        withContext(Dispatchers.Main) {
-                            if (holder.ivIcon.tag == file.absolutePath && bitmap != null) {
-                                holder.ivIcon.clearColorFilter()
-                                holder.ivIcon.setImageBitmap(bitmap)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        override fun getItemCount() = files.size
-    }
+    
 
     private fun getCoverCacheDir(): java.io.File {
         val root = android.os.Environment.getExternalStorageDirectory()
@@ -2302,58 +2272,7 @@ class FloatingReaderService : Service() {
         dialog.show()
     }
 
-    private inner class LibraryAdapter(var books: List<com.example.data.EpubBook>) : androidx.recyclerview.widget.RecyclerView.Adapter<LibraryAdapter.LibraryViewHolder>() {
-        
-        inner class LibraryViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
-            val tvTitle: TextView = view.findViewById(R.id.tv_title)
-            val tvSub: TextView = view.findViewById(R.id.tv_subtitle)
-            val btnMore: ImageView = view.findViewById(R.id.btn_more)
-            init {
-                view.setOnClickListener {
-                    val pos = adapterPosition
-                    if (pos != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
-                        val book = books[pos]
-                        if (book.isParsed) {
-                            loadBook(book.id)
-                            hideOverlays()
-                        } else {
-                            showToast("Book is still parsing...")
-                        }
-                    }
-                }
-                btnMore.setOnClickListener {
-                    val pos = adapterPosition
-                    if (pos != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
-                        val book = books[pos]
-                        serviceScope.launch(Dispatchers.IO) {
-                            val db = AppDatabase.getDatabase(this@FloatingReaderService)
-                            db.epubDao().deleteBook(book)
-                            val updated = db.epubDao().getAllBooks()
-                            withContext(Dispatchers.Main) {
-                                books = updated
-                                notifyDataSetChanged()
-                            }
-                        }
-                        showToast("Deleted ${book.title}")
-                    }
-                }
-            }
-        }
-
-        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): LibraryViewHolder {
-            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_library_book, parent, false)
-            return LibraryViewHolder(view)
-        }
-
-        override fun onBindViewHolder(holder: LibraryViewHolder, position: Int) {
-            val book = books[position]
-            holder.tvTitle.text = book.title
-            val status = if (book.isParsed) "Parsed • Ch ${book.lastReadChapter + 1}/${book.totalChapters}" else "Parsing/Pending..."
-            holder.tvSub.text = status
-        }
-
-        override fun getItemCount() = books.size
-    }
+    
 
     // --- Quick Notes Implementation ---
     private lateinit var listNotes: androidx.recyclerview.widget.RecyclerView
@@ -2383,7 +2302,12 @@ class FloatingReaderService : Service() {
         tvNotesTitle = floatingView.findViewById(R.id.tv_notes_title)
         
         listNotes.layoutManager = androidx.recyclerview.widget.LinearLayoutManager(this)
-        notesAdapter = NotesAdapter()
+        notesAdapter = NotesAdapter(
+        notesList,
+        selectedNotes,
+        { updateNotesUi() },
+        { note -> showNoteDialog(note) }
+    )
         listNotes.adapter = notesAdapter
         
         val etSearchNotes = floatingView.findViewById<android.widget.EditText>(R.id.et_search_notes)
@@ -2519,154 +2443,15 @@ class FloatingReaderService : Service() {
     
     private var notesSearchQuery: String = ""
 
-    private inner class NotesAdapter : androidx.recyclerview.widget.RecyclerView.Adapter<NotesAdapter.NoteViewHolder>() {
-        val unfoldedNoteIds = mutableSetOf<Long>()
+    
 
-        inner class NoteViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
-            val tvTitle: android.widget.TextView = view.findViewById(R.id.tv_note_title)
-            val tvText: android.widget.TextView = view.findViewById(R.id.tv_note_text)
-            val btnUnfold: android.widget.ImageButton = view.findViewById(R.id.btn_note_unfold)
-            val container: View = view.findViewById(R.id.ll_note_container)
-        }
-
-        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): NoteViewHolder {
-            val view = android.view.LayoutInflater.from(parent.context).inflate(R.layout.item_quick_note, parent, false)
-            return NoteViewHolder(view)
-        }
-
-        override fun onBindViewHolder(holder: NoteViewHolder, position: Int) {
-            val note = notesList[position]
-            val isUnfolded = unfoldedNoteIds.contains(note.id.toLong())
-
-            if (note.title.isNotEmpty()) {
-                holder.tvTitle.text = note.title
-            } else {
-                val lines = note.text.lines()
-                holder.tvTitle.text = if (lines.isNotEmpty()) lines[0] else "Untitled Note"
-            }
-            holder.tvTitle.visibility = View.VISIBLE
-
-            holder.tvText.text = note.text
-            
-            if (isUnfolded) {
-                holder.tvText.visibility = View.VISIBLE
-                holder.btnUnfold.setImageResource(android.R.drawable.arrow_up_float)
-            } else {
-                holder.tvText.visibility = View.GONE
-                holder.btnUnfold.setImageResource(android.R.drawable.arrow_down_float)
-            }
-            
-            holder.btnUnfold.setOnClickListener {
-                if (isUnfolded) unfoldedNoteIds.remove(note.id.toLong()) else unfoldedNoteIds.add(note.id.toLong())
-                notifyItemChanged(position)
-            }
-            
-            if (selectedNotes.contains(note)) {
-                holder.container.setBackgroundColor(android.graphics.Color.parseColor("#3A5A7A"))
-            } else {
-                holder.container.setBackgroundColor(android.graphics.Color.TRANSPARENT)
-            }
-            
-            holder.itemView.setOnClickListener {
-                if (selectedNotes.isNotEmpty()) {
-                    if (selectedNotes.contains(note)) selectedNotes.remove(note) else selectedNotes.add(note)
-                    updateNotesUi()
-                } else {
-                    showNoteDialog(note)
-                }
-            }
-            
-            holder.itemView.setOnLongClickListener {
-                if (selectedNotes.contains(note)) selectedNotes.remove(note) else selectedNotes.add(note)
-                updateNotesUi()
-                true
-            }
-        }
-
-        override fun getItemCount() = notesList.size
-    }
-
-    private data class BookmarkItem(val words: String, val chapter: Int, val percentage: Int)
+    
     
     private val bookmarksList = mutableListOf<BookmarkItem>()
 
-    private inner class BookmarkAdapter : androidx.recyclerview.widget.RecyclerView.Adapter<BookmarkAdapter.BookmarkViewHolder>() {
-        inner class BookmarkViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
-            val tvWords: TextView = view.findViewById(R.id.tv_bookmark_words)
-            val tvChapter: TextView = view.findViewById(R.id.tv_bookmark_chapter)
-            val tvPercent: TextView = view.findViewById(R.id.tv_bookmark_percent)
-            val btnDelete: ImageView = view.findViewById(R.id.btn_delete_bookmark)
-            
-            init {
-                view.setOnClickListener {
-                    val pos = adapterPosition
-                    if (pos != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
-                        val bm = bookmarksList[pos]
-                        loadAndJumpToOffset(bm.chapter, 0)
-                        floatingView.findViewById<View>(R.id.overlay_bookmarks)?.visibility = View.GONE
-                    }
-                }
-                btnDelete.setOnClickListener {
-                    val pos = adapterPosition
-                    if (pos != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
-                        bookmarksList.removeAt(pos)
-                        notifyItemRemoved(pos)
-                        notifyItemRangeChanged(pos, bookmarksList.size)
-                    }
-                }
-            }
-        }
-
-        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): BookmarkViewHolder {
-            val view = android.view.LayoutInflater.from(parent.context).inflate(R.layout.item_bookmark, parent, false)
-            return BookmarkViewHolder(view)
-        }
-
-        override fun onBindViewHolder(holder: BookmarkViewHolder, position: Int) {
-            val bm = bookmarksList[position]
-            holder.tvWords.text = bm.words
-            holder.tvChapter.text = "Chapter ${bm.chapter + 1}"
-            holder.tvPercent.text = "${bm.percentage}%"
-        }
-
-        override fun getItemCount() = bookmarksList.size
-    }
+    
         
-    private inner class ChapterAdapter(val totalChapters: Int) : androidx.recyclerview.widget.RecyclerView.Adapter<ChapterAdapter.ChapterViewHolder>() {
-        inner class ChapterViewHolder(view: View) : androidx.recyclerview.widget.RecyclerView.ViewHolder(view) {
-            val tvTitle: TextView = view.findViewById(R.id.tv_chapter_title)
-            init {
-                view.setOnClickListener {
-                    val pos = adapterPosition
-                    if (pos != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
-                        saveCurrentPosition()
-                        currentChapterIndex = pos
-                        currentBook?.let { book ->
-                            currentBook = book.copy(lastReadChapter = pos, lastReadScrollY = 0)
-                        }
-                        loadChapterText()
-                        hideOverlays()
-                    }
-                }
-            }
-        }
-
-        override fun onCreateViewHolder(parent: android.view.ViewGroup, viewType: Int): ChapterViewHolder {
-            val view = LayoutInflater.from(parent.context).inflate(R.layout.item_chapter, parent, false)
-            return ChapterViewHolder(view)
-        }
-
-        override fun onBindViewHolder(holder: ChapterViewHolder, position: Int) {
-            holder.tvTitle.text = "Chapter ${position + 1}"
-            if (position == currentChapterIndex) {
-                holder.tvTitle.setTextColor(android.graphics.Color.parseColor("#7FE9F9"))
-            } else {
-                holder.tvTitle.setTextColor(android.graphics.Color.WHITE)
-            }
-        }
-
-        override fun getItemCount() = totalChapters
-    }
+    
 
     fun setFolded(folded: Boolean) {
         isFolded = folded
