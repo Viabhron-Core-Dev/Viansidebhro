@@ -143,22 +143,64 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
                     } catch (e: Exception) {
                         Color.Gray
                     }
+                    val baseColorStr = if (colorString.length >= 7) colorString.substring(colorString.length - 6) else colorString
+                    val currentBaseStr = if (colorHex.length >= 7) colorHex.substring(colorHex.length - 6) else colorHex
+                    val isSelected = baseColorStr.equals(currentBaseStr, ignoreCase = true)
+                    
                     Box(
                         modifier = Modifier
                             .size(40.dp)
                             .background(parsedColor, CircleShape)
                             .border(
-                                width = if (colorHex == colorString) 2.dp else 1.dp,
-                                color = if (colorHex == colorString) MaterialTheme.colorScheme.primary else Color.Gray,
+                                width = if (isSelected) 2.dp else 1.dp,
+                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
                                 shape = CircleShape
                             )
                             .clickable {
-                                colorHex = colorString
-                                prefs.edit().putString("${prefix}color", colorString).apply()
+                                // Keep the current alpha if a color is selected
+                                val currentAlpha = if (colorHex.length == 9) colorHex.substring(1, 3) else "FF"
+                                val newBase = if (colorString.length >= 7) colorString.substring(colorString.length - 6) else colorString
+                                val newColorHex = "#$currentAlpha$newBase"
+                                colorHex = newColorHex
+                                prefs.edit().putString("${prefix}color", newColorHex).apply()
                             }
                     )
                 }
             }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            var alphaValue by remember(colorHex) {
+                mutableFloatStateOf(
+                    try {
+                        val hex = colorHex.removePrefix("#")
+                        if (hex.length == 8) {
+                            hex.substring(0, 2).toInt(16) / 255f
+                        } else {
+                            1f
+                        }
+                    } catch(e: Exception) { 1f }
+                )
+            }
+            Text("Transparency: ${(alphaValue * 100).toInt()}%")
+            Slider(
+                value = alphaValue,
+                onValueChange = { newAlpha ->
+                    alphaValue = newAlpha
+                    val hex = colorHex.removePrefix("#")
+                    val newAlphaHex = String.format("%02X", (newAlpha * 255).toInt())
+                    val newColorHex = if (hex.length == 8) {
+                        "#" + newAlphaHex + hex.substring(2)
+                    } else if (hex.length == 6) {
+                        "#" + newAlphaHex + hex
+                    } else {
+                        colorHex
+                    }
+                    colorHex = newColorHex
+                    prefs.edit().putString("${prefix}color", newColorHex).apply()
+                },
+                valueRange = 0f..1f
+            )
             
             Spacer(modifier = Modifier.height(8.dp))
             Text("Shape:")
