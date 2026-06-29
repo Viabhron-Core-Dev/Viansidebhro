@@ -25,6 +25,8 @@ class AppsPageView(
     private val onHeightChanged: ((Int) -> Unit)? = null
 ) : FrameLayout(context) {
 
+    private val prefs = context.getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE)
+
     private val recyclerView: RecyclerView
     private val adapter: AppsAdapter
 
@@ -324,7 +326,29 @@ class AppsPageView(
                                         } catch (e: Exception) { e.printStackTrace() }
                                     }
                                 }
-                                "Edit Icon" -> android.widget.Toast.makeText(context, "Edit icon not fully implemented yet", android.widget.Toast.LENGTH_SHORT).show()
+                                "Edit Icon" -> {
+                                    val et = android.widget.EditText(context).apply {
+                                        hint = "Emoji or App Package"
+                                        val current = prefs.getString("custom_icon_${item.id}", "")
+                                        setText(current)
+                                    }
+                                    val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+                                        .setTitle("Edit Icon")
+                                        .setView(et)
+                                        .setPositiveButton("Save") { _, _ ->
+                                            val input = et.text.toString().trim()
+                                            if (input.isEmpty()) {
+                                                prefs.edit().remove("custom_icon_${item.id}").apply()
+                                            } else {
+                                                prefs.edit().putString("custom_icon_${item.id}", input).apply()
+                                            }
+                                            refreshList()
+                                        }
+                                        .setNegativeButton("Cancel", null)
+                                        .create()
+                                    dialog.window?.setType(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else android.view.WindowManager.LayoutParams.TYPE_PHONE)
+                                    dialog.show()
+                                }
                                 "Rename Folder" -> {
                                     if (item is SidebarItem.Folder) {
                                         val et = android.widget.EditText(context).apply { setText(item.name) }
@@ -405,6 +429,36 @@ class AppsPageView(
                 popupWindow?.showAtLocation(itemView, android.view.Gravity.NO_GRAVITY, location[0] + itemView.width / 4, location[1] + itemView.height / 2)
                 
                 true
+            }
+
+            val customIconStr = prefs.getString("custom_icon_${item.id}", null)
+            if (!customIconStr.isNullOrEmpty()) {
+                icon.setImageDrawable(null)
+                icon.clearColorFilter()
+                icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                if (customIconStr.length <= 4 && !customIconStr.contains(".")) {
+                    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+                    paint.textSize = 28f * context.resources.displayMetrics.density
+                    paint.color = android.graphics.Color.WHITE
+                    paint.textAlign = android.graphics.Paint.Align.LEFT
+                    val baseline = -paint.ascent()
+                    val width = (paint.measureText(customIconStr) + 0.5f).toInt().coerceAtLeast(1)
+                    val height = (baseline + paint.descent() + 0.5f).toInt().coerceAtLeast(1)
+                    val bitmap = android.graphics.Bitmap.createBitmap(width, height, android.graphics.Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bitmap)
+                    canvas.drawText(customIconStr, 0f, baseline, paint)
+                    icon.setImageBitmap(bitmap)
+                } else {
+                    serviceScope.launch {
+                        val bitmap = manager.loadIcon(customIconStr)
+                        if (bitmap != null) {
+                            withContext(Dispatchers.Main) {
+                                icon.setImageBitmap(bitmap)
+                            }
+                        }
+                    }
+                }
+                return
             }
 
             if (item is SidebarItem.App) {

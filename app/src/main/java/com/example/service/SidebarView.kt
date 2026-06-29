@@ -120,6 +120,25 @@ class SidebarView(
             }
             addView(closeText)
 
+            val settingsText = TextView(context).apply {
+                text = "⚙️"
+                textSize = 20f
+                setTextColor(Color.WHITE)
+                gravity = Gravity.CENTER
+                layoutParams = LayoutParams(headerHeight, headerHeight).apply {
+                    gravity = Gravity.END or Gravity.CENTER_VERTICAL
+                    marginEnd = headerHeight // Position it before the close button
+                }
+                setOnClickListener {
+                    val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+                        flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    context.startActivity(intent)
+                    close()
+                }
+            }
+            addView(settingsText)
+
             val addText = TextView(context).apply {
                 text = "+"
                 textSize = 24f
