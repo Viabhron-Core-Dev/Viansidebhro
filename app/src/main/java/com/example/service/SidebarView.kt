@@ -130,7 +130,7 @@ class SidebarView(
                     marginEnd = headerHeight // Position it before the close button
                 }
                 setOnClickListener {
-                    val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+                    val intent = android.content.Intent(context, com.example.SettingsActivity::class.java).apply {
                         flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
                     }
                     context.startActivity(intent)

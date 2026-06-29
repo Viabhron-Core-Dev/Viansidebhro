@@ -21,6 +21,8 @@ import com.example.utils.BackupHelper
 import com.example.util.AppLogger
 import android.widget.Toast
 import android.content.Intent
+import android.os.Build
+import android.net.Uri
 
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -197,6 +199,14 @@ fun ReaderSettingsScreen(onBack: () -> Unit) {
         }
     }
 
+    val storageLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) {
+        val hasPerm = Build.VERSION.SDK_INT < Build.VERSION_CODES.R || android.os.Environment.isExternalStorageManager()
+        useScopedDir = hasPerm
+        prefs.edit().putBoolean("use_scoped_dir", hasPerm).apply()
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
         TopAppBar(
             title = { Text("eBook Reader Settings") },
@@ -307,13 +317,26 @@ fun ReaderSettingsScreen(onBack: () -> Unit) {
                 )
                 Divider()
                 ListItem(
-                    headlineContent = { Text("Use Scoped Directory") },
+                    headlineContent = { Text("File Explorer Mode") },
+                    supportingContent = { Text("Browse all folders for books directly") },
                     trailingContent = {
                         Switch(
                             checked = useScopedDir,
-                            onCheckedChange = { 
-                                useScopedDir = it
-                                prefs.edit().putBoolean("use_scoped_dir", it).apply()
+                            onCheckedChange = { checked -> 
+                                if (checked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !android.os.Environment.isExternalStorageManager()) {
+                                    try {
+                                        val intent = Intent(android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+                                            data = Uri.parse("package:" + context.packageName)
+                                        }
+                                        storageLauncher.launch(intent)
+                                    } catch (e: Exception) {
+                                        val intent = Intent(android.provider.Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+                                        storageLauncher.launch(intent)
+                                    }
+                                } else {
+                                    useScopedDir = checked
+                                    prefs.edit().putBoolean("use_scoped_dir", checked).apply()
+                                }
                             }
                         )
                     }
