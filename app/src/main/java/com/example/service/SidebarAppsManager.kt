@@ -236,6 +236,79 @@ class SidebarAppsManager(
         allInstalledApps = distinctResult
     }
 
+    fun parseId(id: String): SidebarItem? {
+        if (id.startsWith("app:")) {
+            val pkg = id.substringAfter("app:")
+            val appInfo = allInstalledApps.find { it.packageName == pkg }
+            if (appInfo != null) {
+                return SidebarItem.App(appInfo.packageName, appInfo.label)
+            }
+        } else if (id.startsWith("intent:")) {
+            val componentStr = id.substringAfter("intent:")
+            val pkg = componentStr.split("/").getOrNull(0) ?: ""
+            val cls = componentStr.split("/").getOrNull(1) ?: ""
+            val appInfo = allInstalledApps.find { it.packageName == pkg }
+            val label = if (appInfo != null) "${appInfo.label} - ${cls.substringAfterLast(".")}" else cls
+            return SidebarItem.IntentAction(componentStr, label)
+        } else if (id.startsWith("system:")) {
+            val action = id.substringAfter("system:")
+            val sysAction = ALL_SYSTEM_ACTIONS.find { it.action == action }
+            if (sysAction != null) {
+                return SidebarItem.SystemAction(action, sysAction.label, sysAction.iconResId)
+            }
+        } else if (id.startsWith("volume:")) {
+            val actionId = id.substringAfter("volume:")
+            val volAction = ALL_VOLUME_ACTIONS.find { "${it.stream}_${it.action}" == actionId }
+            if (volAction != null) {
+                return SidebarItem.VolumeAction(volAction.stream, volAction.action, volAction.label, volAction.iconResId)
+            }
+        } else if (id.startsWith("media:")) {
+            val actionId = id.substringAfter("media:")
+            val mediaAction = ALL_MEDIA_ACTIONS.find { it.action == actionId }
+            if (mediaAction != null) {
+                return SidebarItem.MediaAction(actionId, mediaAction.label, mediaAction.iconResId)
+            }
+        } else if (id.startsWith("display:")) {
+            val actionId = id.substringAfter("display:")
+            val displayAction = ALL_DISPLAY_ACTIONS.find { it.action == actionId }
+            if (displayAction != null) {
+                return SidebarItem.DisplayAction(actionId, displayAction.label, displayAction.iconResId)
+            }
+        } else if (id.startsWith("folder:")) {
+            try {
+                val parts = id.split(":", limit = 3)
+                val uuid = parts[1]
+                val folderDataStr = parts[2]
+                val obj = org.json.JSONObject(folderDataStr)
+                val itemsArr = obj.optJSONArray("items")
+                val itemsList = mutableListOf<String>()
+                if (itemsArr != null) {
+                    for (i in 0 until itemsArr.length()) {
+                        itemsList.add(itemsArr.getString(i))
+                    }
+                }
+                val folderStyle = obj.optInt("folderStyle", 0)
+                return SidebarItem.Folder(uuid, obj.getString("name"), obj.getString("colorHex"), itemsList, folderStyle)
+            } catch (e: Exception) { e.printStackTrace() }
+        } else if (id.startsWith("link:")) {
+            try {
+                val parts = id.split(":", limit = 3)
+                val uuid = parts[1]
+                val linkDataStr = parts[2]
+                val obj = org.json.JSONObject(linkDataStr)
+                return SidebarItem.Link(uuid, obj.getString("url"), obj.getString("label"))
+            } catch (e: Exception) { e.printStackTrace() }
+        } else if (id.startsWith("spacer:")) {
+            try {
+                val parts = id.split(":", limit = 3)
+                val uuid = parts[1]
+                val height = if (parts.size > 2) parts[2].toIntOrNull() ?: 50 else 50
+                return SidebarItem.Spacer(uuid, height)
+            } catch (e: Exception) { e.printStackTrace() }
+        }
+        return null
+    }
+
     private suspend fun loadActiveApps() = withContext(Dispatchers.IO) {
         var jsonStr = prefs.getString("sidebar_apps", """["system:log_keeper", "system:ebook_reader"]""") ?: """["system:log_keeper", "system:ebook_reader"]"""
         if (jsonStr == "[]" || jsonStr == """["system:log_keeper"]""") {

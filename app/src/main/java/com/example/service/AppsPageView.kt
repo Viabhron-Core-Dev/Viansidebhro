@@ -22,7 +22,8 @@ class AppsPageView(
     private val manager: SidebarAppsManager,
     private val serviceScope: CoroutineScope,
     private val onCloseSidebar: () -> Unit,
-    private val onHeightChanged: ((Int) -> Unit)? = null
+    private val onHeightChanged: ((Int) -> Unit)? = null,
+    private val onEditModeClicked: (() -> Unit)? = null
 ) : FrameLayout(context) {
 
     private val prefs = context.getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE)
@@ -45,6 +46,7 @@ class AppsPageView(
 
     init {
         val density = context.resources.displayMetrics.density
+        val columns = prefs.getInt("sidebar_columns", 4)
 
         adapter = AppsAdapter()
 
@@ -52,10 +54,10 @@ class AppsPageView(
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT).apply {
                 topMargin = 0
             }
-            layoutManager = GridLayoutManager(context, 3).apply {
+            layoutManager = GridLayoutManager(context, columns).apply {
                 spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
                     override fun getSpanSize(position: Int): Int {
-                        return if (this@AppsPageView.adapter.getItemViewType(position) == 1) 3 else 1
+                        return if (this@AppsPageView.adapter.getItemViewType(position) == 1) columns else 1
                     }
                 }
             }
@@ -271,18 +273,10 @@ class AppsPageView(
 
             itemView.setOnLongClickListener {
                 val actionList = mutableListOf<String>()
-                actionList.add("Move Up")
-                actionList.add("Move Down")
+                actionList.add("Edit Mode")
                 
                 if (item is SidebarItem.App) {
                     actionList.add("App Info")
-                    actionList.add("Edit Icon")
-                } else if (item is SidebarItem.Folder) {
-                    actionList.add("Rename Folder")
-                    actionList.add("Change Style")
-                    actionList.add("Add App")
-                } else {
-                    actionList.add("Edit Icon")
                 }
                 actionList.add("Remove")
 
@@ -312,8 +306,7 @@ class AppsPageView(
                         setOnClickListener {
                             popupWindow?.dismiss()
                             when (action) {
-                                "Move Up" -> manager.moveItem(item.id, true)
-                                "Move Down" -> manager.moveItem(item.id, false)
+                                "Edit Mode" -> onEditModeClicked?.invoke()
                                 "Remove" -> manager.removeItem(item.id)
                                 "App Info" -> {
                                     if (item is SidebarItem.App) {

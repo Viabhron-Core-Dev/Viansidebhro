@@ -560,7 +560,12 @@ class FloatingReaderService : Service() {
         sidebarEditOverlayView?.detach()
         sidebarEditOverlayView = SidebarEditOverlayView(
             this, appsManager, windowManager,
-            onAddClicked = { showAddElementOverlay(null) },
+            onAddClicked = { 
+                showAddElementOverlayForSelection { id ->
+                    sidebarEditOverlayView?.localIds?.add(id)
+                    sidebarEditOverlayView?.refresh()
+                }
+            },
             onClose = { sidebarEditOverlayView?.detach() }
         )
         sidebarEditOverlayView?.attach()

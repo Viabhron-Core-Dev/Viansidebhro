@@ -9,13 +9,15 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.BaseAdapter
 import android.widget.Button
 import android.widget.FrameLayout
-import android.widget.GridView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
+import androidx.recyclerview.widget.RecyclerView
+import org.json.JSONArray
 import com.example.R
 
 @SuppressLint("ViewConstructor")
@@ -28,8 +30,12 @@ class SidebarEditOverlayView(
 ) : FrameLayout(context) {
 
     private val layoutParams: WindowManager.LayoutParams
-    private val gridView: GridView
+    private val recyclerView: RecyclerView
     private val adapter: EditAdapter
+    private val prefs = context.getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE)
+
+    // Local mutable list of IDs representing the current edit state
+    val localIds = mutableListOf<String>()
 
     init {
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -49,55 +55,110 @@ class SidebarEditOverlayView(
 
         setBackgroundColor(Color.parseColor("#E6000000")) // Semi-transparent black
 
+        // Initialize local list with current items
+        localIds.addAll(manager.activeItems.map { it.id })
+
         val rootLayout = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(40, 100, 40, 100)
+            gravity = Gravity.CENTER
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
         }
 
-        val headerLayout = LinearLayout(context).apply {
+        // Top Buttons Row
+        val buttonsLayout = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+            gravity = Gravity.CENTER
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 0, 0, 40)
+            }
         }
 
-        val title = TextView(context).apply {
-            text = "Edit Sidebar Elements"
-            setTextColor(Color.WHITE)
-            textSize = 24f
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        val btnAdd = Button(context).apply {
+            text = "Add"
+            setOnClickListener { onAddClicked() }
         }
-
-        val btnClose = Button(context).apply {
-            text = "Done"
+        val btnReset = Button(context).apply {
+            text = "Empty"
+            setOnClickListener {
+                localIds.clear()
+                refresh()
+            }
+        }
+        val btnSave = Button(context).apply {
+            text = "Save"
+            setOnClickListener { saveAndClose() }
+        }
+        val btnCancel = Button(context).apply {
+            text = "Cancel"
             setOnClickListener { close() }
         }
 
-        headerLayout.addView(title)
-        headerLayout.addView(btnClose)
-        rootLayout.addView(headerLayout)
+        buttonsLayout.addView(btnAdd)
+        buttonsLayout.addView(btnReset)
+        buttonsLayout.addView(btnSave)
+        buttonsLayout.addView(btnCancel)
 
-        val btnAdd = Button(context).apply {
-            text = "+ Add Element"
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
-                setMargins(0, 40, 0, 40)
-            }
-            setOnClickListener { onAddClicked() }
+        rootLayout.addView(buttonsLayout)
+
+        // Sidebar-like window in the middle
+        val density = context.resources.displayMetrics.density
+        val sidebarWidth = (prefs.getInt("sidebar_width", 320) * density).toInt()
+        val sidebarHeight = (prefs.getInt("sidebar_height", 450) * density).toInt()
+        
+        val sidebarContainer = FrameLayout(context).apply {
+            layoutParams = LinearLayout.LayoutParams(sidebarWidth, sidebarHeight)
+            val shape = android.graphics.drawable.GradientDrawable()
+            shape.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+            shape.cornerRadius = 20f * density
+            val opacity = prefs.getFloat("sidebar_transparency", 0.9f)
+            val alphaInt = (opacity * 255).toInt().coerceIn(0, 255)
+            shape.setColor(Color.argb(alphaInt, 0, 0, 0))
+            background = shape
+            setPadding(10, 10, 10, 10)
         }
-        rootLayout.addView(btnAdd)
 
-        gridView = GridView(context).apply {
-            numColumns = 4
-            horizontalSpacing = 20
-            verticalSpacing = 40
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        val columns = prefs.getInt("sidebar_columns", 4)
+        recyclerView = RecyclerView(context).apply {
+            layoutParams = FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT)
+            layoutManager = GridLayoutManager(context, columns).apply {
+                spanSizeLookup = object : GridLayoutManager.SpanSizeLookup() {
+                    override fun getSpanSize(position: Int): Int {
+                        val id = localIds[position]
+                        val item = manager.parseId(id)
+                        return if (item is SidebarItem.Spacer) columns else 1
+                    }
+                }
+            }
         }
 
         adapter = EditAdapter()
-        gridView.adapter = adapter
-        rootLayout.addView(gridView)
+        recyclerView.adapter = adapter
+        sidebarContainer.addView(recyclerView)
 
-        addView(rootLayout, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+        val touchHelperCallback = object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
+            0
+        ) {
+            override fun onMove(
+                recyclerView: RecyclerView,
+                viewHolder: RecyclerView.ViewHolder,
+                target: RecyclerView.ViewHolder
+            ): Boolean {
+                val from = viewHolder.adapterPosition
+                val to = target.adapterPosition
+                val item = localIds.removeAt(from)
+                localIds.add(to, item)
+                adapter.notifyItemMoved(from, to)
+                return true
+            }
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {}
+        }
+        val itemTouchHelper = ItemTouchHelper(touchHelperCallback)
+        itemTouchHelper.attachToRecyclerView(recyclerView)
+
+        rootLayout.addView(sidebarContainer)
+        addView(rootLayout)
     }
 
     fun refresh() {
@@ -106,6 +167,8 @@ class SidebarEditOverlayView(
 
     fun attach() {
         if (windowToken == null) {
+            localIds.clear()
+            localIds.addAll(manager.activeItems.map { it.id })
             refresh()
             windowManager.addView(this, layoutParams)
         }
@@ -121,120 +184,161 @@ class SidebarEditOverlayView(
         onClose()
     }
 
-    private inner class EditAdapter : BaseAdapter() {
-        override fun getCount(): Int = manager.activeItems.size
+    private fun saveAndClose() {
+        val jArr = JSONArray()
+        localIds.forEach { jArr.put(it) }
+        prefs.edit().putString("sidebar_apps", jArr.toString()).apply()
+        manager.ensureLoaded()
+        close()
+    }
 
-        override fun getItem(position: Int): Any = manager.activeItems[position]
-
-        override fun getItemId(position: Int): Long = position.toLong()
-
-        override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
-            val item = manager.activeItems[position]
-            
-            val view = convertView as? LinearLayout ?: LinearLayout(context).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-            }
-            view.removeAllViews()
-
+    private inner class EditViewHolder(val view: LinearLayout) : RecyclerView.ViewHolder(view) {
+        val icon = ImageView(context)
+        val label = TextView(context)
+        init {
+            view.orientation = LinearLayout.VERTICAL
+            view.gravity = Gravity.CENTER
             val density = context.resources.displayMetrics.density
-            val size = (56 * density).toInt()
-
-            val iconWrapper = FrameLayout(context).apply {
-                layoutParams = LinearLayout.LayoutParams(size, size)
+            val size = (48 * density).toInt()
+            
+            icon.layoutParams = LinearLayout.LayoutParams(size, size)
+            icon.scaleType = ImageView.ScaleType.FIT_CENTER
+            
+            label.setTextColor(Color.WHITE)
+            label.textSize = 10f
+            label.gravity = Gravity.CENTER
+            label.maxLines = 2
+            label.setPadding(0, 8, 0, 0)
+            
+            view.addView(icon)
+            view.addView(label)
+            
+            view.layoutParams = ViewGroup.MarginLayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT).apply {
+                setMargins(0, 16, 0, 16)
             }
+        }
+    }
 
-            val icon = ImageView(context).apply {
-                layoutParams = FrameLayout.LayoutParams(size, size)
-                scaleType = ImageView.ScaleType.FIT_CENTER
+    private inner class EditAdapter : RecyclerView.Adapter<EditViewHolder>() {
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): EditViewHolder {
+            return EditViewHolder(LinearLayout(context))
+        }
+
+        override fun onBindViewHolder(holder: EditViewHolder, position: Int) {
+            val id = localIds[position]
+            val item = manager.parseId(id)
+            
+            if (item == null) {
+                holder.label.text = "Unknown"
+                holder.icon.setImageResource(android.R.drawable.ic_dialog_alert)
+                return
             }
+            
+            holder.label.text = item.label
 
             if (item is SidebarItem.App) {
                 val cached = manager.iconCache.get(item.packageName)
                 if (cached != null) {
-                    icon.setImageBitmap(cached)
+                    holder.icon.setImageBitmap(cached)
                 } else {
-                    icon.setImageResource(android.R.mipmap.sym_def_app_icon)
+                    holder.icon.setImageResource(android.R.mipmap.sym_def_app_icon)
                 }
-            } else if (item is SidebarItem.SystemAction) {
-                icon.setImageResource(item.iconResId)
-                icon.setColorFilter(Color.WHITE)
-            } else if (item is SidebarItem.VolumeAction) {
-                icon.setImageResource(item.iconResId)
-                icon.setColorFilter(Color.WHITE)
-            } else if (item is SidebarItem.MediaAction) {
-                icon.setImageResource(item.iconResId)
-                icon.setColorFilter(Color.WHITE)
-            } else if (item is SidebarItem.DisplayAction) {
-                icon.setImageResource(item.iconResId)
-                icon.setColorFilter(Color.WHITE)
+            } else if (item is SidebarItem.SystemAction || item is SidebarItem.VolumeAction || item is SidebarItem.MediaAction || item is SidebarItem.DisplayAction) {
+                val resId = when (item) {
+                    is SidebarItem.SystemAction -> item.iconResId
+                    is SidebarItem.VolumeAction -> item.iconResId
+                    is SidebarItem.MediaAction -> item.iconResId
+                    is SidebarItem.DisplayAction -> item.iconResId
+                    else -> 0
+                }
+                holder.icon.setImageResource(resId)
+                holder.icon.setColorFilter(Color.WHITE)
             } else if (item is SidebarItem.Folder) {
                 val cHex = try { Color.parseColor(item.colorHex) } catch(e:Exception){ Color.parseColor("#00BFA5") }
                 val iconC = Color.WHITE
                 val miniIcons = item.items.mapNotNull { 
                     if (it.startsWith("app:")) manager.iconCache.get(it.substringAfter("app:")) else null 
                 }.take(4)
-                icon.setImageDrawable(FolderStyleDrawable(item.folderStyle, cHex, iconC, miniIcons))
+                holder.icon.setImageDrawable(FolderStyleDrawable(item.folderStyle, cHex, iconC, miniIcons))
             } else if (item is SidebarItem.Link) {
-                icon.setImageResource(android.R.drawable.ic_menu_set_as)
-                icon.setColorFilter(Color.WHITE)
+                holder.icon.setImageResource(android.R.drawable.ic_menu_set_as)
+                holder.icon.setColorFilter(Color.WHITE)
             } else if (item is SidebarItem.Spacer) {
-                icon.setImageResource(android.R.drawable.ic_menu_crop)
-                icon.setColorFilter(Color.GRAY)
+                holder.icon.setImageResource(android.R.drawable.ic_menu_crop)
+                holder.icon.setColorFilter(Color.GRAY)
             }
-            iconWrapper.addView(icon)
-
-            val deleteBtn = ImageView(context).apply {
-                setImageResource(android.R.drawable.ic_menu_delete)
-                setColorFilter(Color.RED)
-                layoutParams = FrameLayout.LayoutParams((24 * density).toInt(), (24 * density).toInt(), Gravity.TOP or Gravity.END)
-                setOnClickListener {
-                    manager.removeItem(item.id)
-                    refresh()
+            
+            holder.view.setOnClickListener {
+                val actionList = mutableListOf("Change Icon", "Remove")
+                var popupWindow: android.widget.PopupWindow? = null
+                val popupLayout = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    val shape = android.graphics.drawable.GradientDrawable()
+                    shape.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                    shape.cornerRadius = 16f * context.resources.displayMetrics.density
+                    shape.setColor(Color.WHITE)
+                    shape.setStroke(1, Color.LTGRAY)
+                    background = shape
                 }
-            }
-            iconWrapper.addView(deleteBtn)
 
-            view.addView(iconWrapper)
-
-            val label = TextView(context).apply {
-                text = item.label
-                setTextColor(Color.WHITE)
-                textSize = 10f
-                gravity = Gravity.CENTER
-                maxLines = 2
-                setPadding(0, 8, 0, 0)
-            }
-            view.addView(label)
-
-            // Reorder buttons
-            val reorderLayout = LinearLayout(context).apply {
-                orientation = LinearLayout.HORIZONTAL
-                gravity = Gravity.CENTER
-            }
-            val btnLeft = ImageView(context).apply {
-                setImageResource(android.R.drawable.ic_media_previous)
-                setColorFilter(Color.LTGRAY)
-                setPadding(10, 10, 10, 10)
-                setOnClickListener {
-                    manager.moveItem(item.id, true)
-                    refresh()
+                actionList.forEach { action ->
+                    val actionView = TextView(context).apply {
+                        text = action
+                        val pad = (12 * context.resources.displayMetrics.density).toInt()
+                        val padH = (16 * context.resources.displayMetrics.density).toInt()
+                        setPadding(padH, pad, padH, pad)
+                        setTextColor(Color.BLACK)
+                        textSize = 14f
+                        val outValue = android.util.TypedValue()
+                        context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
+                        setBackgroundResource(outValue.resourceId)
+                        
+                        setOnClickListener {
+                            popupWindow?.dismiss()
+                            when (action) {
+                                "Remove" -> {
+                                    localIds.removeAt(holder.adapterPosition)
+                                    refresh()
+                                }
+                                "Change Icon" -> {
+                                    val et = android.widget.EditText(context).apply {
+                                        hint = "Emoji or App Package"
+                                        val current = prefs.getString("custom_icon_${item.id}", "")
+                                        setText(current)
+                                    }
+                                    val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
+                                        .setTitle("Edit Icon")
+                                        .setView(et)
+                                        .setPositiveButton("Save") { _, _ ->
+                                            val input = et.text.toString().trim()
+                                            if (input.isEmpty()) {
+                                                prefs.edit().remove("custom_icon_${item.id}").apply()
+                                            } else {
+                                                prefs.edit().putString("custom_icon_${item.id}", input).apply()
+                                            }
+                                            refresh()
+                                        }
+                                        .setNegativeButton("Cancel", null)
+                                        .create()
+                                    dialog.window?.setType(if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_PHONE)
+                                    dialog.show()
+                                }
+                            }
+                        }
+                    }
+                    popupLayout.addView(actionView)
                 }
-            }
-            val btnRight = ImageView(context).apply {
-                setImageResource(android.R.drawable.ic_media_next)
-                setColorFilter(Color.LTGRAY)
-                setPadding(10, 10, 10, 10)
-                setOnClickListener {
-                    manager.moveItem(item.id, false)
-                    refresh()
-                }
-            }
-            reorderLayout.addView(btnLeft)
-            reorderLayout.addView(btnRight)
-            view.addView(reorderLayout)
 
-            return view
+                popupWindow = android.widget.PopupWindow(
+                    popupLayout,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    true
+                )
+                popupWindow.elevation = 10f * context.resources.displayMetrics.density
+                popupWindow.showAsDropDown(holder.view, 0, 0)
+            }
         }
+        override fun getItemCount(): Int = localIds.size
     }
 }
