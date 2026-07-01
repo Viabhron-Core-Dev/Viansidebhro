@@ -65,6 +65,7 @@ object BackupHelper {
             Result.success(destFile.absolutePath)
         } catch (e: Exception) {
             Log.e("BackupHelper", "Backup failed", e)
+            com.example.LogKeeper.writeLog("BackupHelper", "Backup failed: ${android.util.Log.getStackTraceString(e)}")
             Result.failure(e)
         }
     }
@@ -109,9 +110,14 @@ object BackupHelper {
                     }
                 }
             }
+            
+            // Trim books to last 10 after restoring database
+            com.example.data.LibraryRepository(context).trimToLast10Books()
+            
             Result.success(Unit)
         } catch (e: Exception) {
             Log.e("BackupHelper", "Import failed", e)
+            com.example.LogKeeper.writeLog("BackupHelper", "Import failed: ${android.util.Log.getStackTraceString(e)}")
             Result.failure(e)
         }
     }
@@ -138,6 +144,7 @@ object BackupHelper {
             zos.closeEntry()
         } catch (e: Exception) {
             Log.e("BackupHelper", "Failed to add $entryName to zip", e)
+            com.example.LogKeeper.writeLog("BackupHelper", "Failed to add $entryName to zip: ${android.util.Log.getStackTraceString(e)}")
         }
     }
 }

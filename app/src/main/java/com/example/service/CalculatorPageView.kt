@@ -17,6 +17,7 @@ class CalculatorPageView(context: Context) : FrameLayout(context) {
 
     init {
         addView(ComposeView(context).apply {
+            layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             setContent {
                 MaterialTheme(colorScheme = darkColorScheme()) {
                     CalculatorScreen()

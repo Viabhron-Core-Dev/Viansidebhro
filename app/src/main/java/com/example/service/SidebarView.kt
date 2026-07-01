@@ -60,7 +60,7 @@ class SidebarView(
             widthPx,
             heightPx,
             windowType,
-            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = gravityEdge or Gravity.BOTTOM
@@ -139,17 +139,17 @@ class SidebarView(
             }
             addView(settingsText)
 
-            val addText = TextView(context).apply {
-                text = "+"
-                textSize = 24f
-                setTextColor(Color.parseColor("#4CAF50"))
-                gravity = Gravity.CENTER
+            val addIcon = ImageView(context).apply {
+                setImageResource(android.R.drawable.ic_menu_edit)
+                setColorFilter(Color.parseColor("#4CAF50"))
+                val pad = (12 * resources.displayMetrics.density).toInt()
+                setPadding(pad, pad, pad, pad)
                 layoutParams = LayoutParams(headerHeight, headerHeight).apply {
                     gravity = Gravity.START or Gravity.CENTER_VERTICAL
                 }
                 setOnClickListener { onAddClicked?.invoke() }
             }
-            addView(addText)
+            addView(addIcon)
         }
 
         container = FrameLayout(context).apply {
@@ -212,6 +212,8 @@ class SidebarView(
                 updateDots(actualPos)
                 val page = pages.getOrNull(actualPos)
                 if (page is AppsPageView) {
+                    updateHeight(page.getCurrentHeightPx())
+                } else if (page is NotificationPageView) {
                     updateHeight(page.getCurrentHeightPx())
                 } else if (page != null) {
                     val density = context.resources.displayMetrics.density

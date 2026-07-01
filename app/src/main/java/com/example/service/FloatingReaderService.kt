@@ -506,6 +506,15 @@ class FloatingReaderService : Service() {
                 "scheduler" -> SchedulerPageView(this, serviceScope)
                 "calculator" -> CalculatorPageView(this)
                 "compass" -> CompassPageView(this)
+                "notifications" -> {
+                    var p: NotificationPageView? = null
+                    p = NotificationPageView(this) { newHeight ->
+                        if (sidebarView != null && p != null && sidebarPagesList.indexOf(p!!) == sidebarView!!.getCurrentPageIndex()) {
+                            sidebarView?.updateHeight(newHeight)
+                        }
+                    }
+                    p
+                }
                 else -> {
                     TextView(this).apply {
                         text = "${config.title} coming soon..."
@@ -538,6 +547,8 @@ class FloatingReaderService : Service() {
             }
             val defaultPage = sidebarPagesList.getOrNull(sidebarDefaultIndex)
             if (defaultPage is AppsPageView) {
+                sidebarView?.updateHeight((defaultPage).getCurrentHeightPx())
+            } else if (defaultPage is NotificationPageView) {
                 sidebarView?.updateHeight((defaultPage).getCurrentHeightPx())
             } else if (defaultPage != null) {
                 val density = resources.displayMetrics.density

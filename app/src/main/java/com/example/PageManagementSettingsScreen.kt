@@ -130,6 +130,7 @@ fun PageManagementSettingsScreen(onBack: () -> Unit) {
                             "scheduler" to "Scheduler",
                             "calculator" to "Calculator",
                             "compass" to "Compass",
+                            "notifications" to "Notifications",
                             "reader" to "Reader"
                         )
                         types.forEach { (type, title) ->

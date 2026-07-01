@@ -273,8 +273,6 @@ class AppsPageView(
 
             itemView.setOnLongClickListener {
                 val actionList = mutableListOf<String>()
-                actionList.add("Edit Mode")
-                
                 if (item is SidebarItem.App) {
                     actionList.add("App Info")
                 }
@@ -283,30 +281,36 @@ class AppsPageView(
                 var popupWindow: android.widget.PopupWindow? = null
                 val popupLayout = android.widget.LinearLayout(context).apply {
                     orientation = android.widget.LinearLayout.VERTICAL
-                    val shape = android.graphics.drawable.GradientDrawable()
-                    shape.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
-                    shape.cornerRadius = 16f * context.resources.displayMetrics.density
-                    shape.setColor(android.graphics.Color.WHITE)
-                    shape.setStroke(1, android.graphics.Color.LTGRAY)
-                    background = shape
+                    val pad = (8 * context.resources.displayMetrics.density).toInt()
+                    setPadding(pad, pad, pad, pad)
                 }
 
                 actionList.forEach { action ->
                     val actionView = android.widget.TextView(context).apply {
                         text = action
-                        val pad = (12 * context.resources.displayMetrics.density).toInt()
+                        val padV = (10 * context.resources.displayMetrics.density).toInt()
                         val padH = (16 * context.resources.displayMetrics.density).toInt()
-                        setPadding(padH, pad, padH, pad)
+                        setPadding(padH, padV, padH, padV)
                         setTextColor(android.graphics.Color.BLACK)
                         textSize = 14f
-                        val outValue = android.util.TypedValue()
-                        context.theme.resolveAttribute(android.R.attr.selectableItemBackground, outValue, true)
-                        setBackgroundResource(outValue.resourceId)
+                        
+                        val shape = android.graphics.drawable.GradientDrawable()
+                        shape.shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                        shape.cornerRadius = 24f * context.resources.displayMetrics.density
+                        shape.setColor(android.graphics.Color.WHITE)
+                        shape.setStroke(1, android.graphics.Color.LTGRAY)
+                        background = shape
+                        
+                        layoutParams = android.widget.LinearLayout.LayoutParams(
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply {
+                            setMargins(0, 0, 0, (8 * context.resources.displayMetrics.density).toInt())
+                        }
                         
                         setOnClickListener {
                             popupWindow?.dismiss()
                             when (action) {
-                                "Edit Mode" -> onEditModeClicked?.invoke()
                                 "Remove" -> manager.removeItem(item.id)
                                 "App Info" -> {
                                     if (item is SidebarItem.App) {
@@ -317,88 +321,6 @@ class AppsPageView(
                                             context.startActivity(intent)
                                             onCloseSidebar()
                                         } catch (e: Exception) { e.printStackTrace() }
-                                    }
-                                }
-                                "Edit Icon" -> {
-                                    val et = android.widget.EditText(context).apply {
-                                        hint = "Emoji or App Package"
-                                        val current = prefs.getString("custom_icon_${item.id}", "")
-                                        setText(current)
-                                    }
-                                    val dialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
-                                        .setTitle("Edit Icon")
-                                        .setView(et)
-                                        .setPositiveButton("Save") { _, _ ->
-                                            val input = et.text.toString().trim()
-                                            if (input.isEmpty()) {
-                                                prefs.edit().remove("custom_icon_${item.id}").apply()
-                                            } else {
-                                                prefs.edit().putString("custom_icon_${item.id}", input).apply()
-                                            }
-                                            refreshList()
-                                        }
-                                        .setNegativeButton("Cancel", null)
-                                        .create()
-                                    dialog.window?.setType(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else android.view.WindowManager.LayoutParams.TYPE_PHONE)
-                                    dialog.show()
-                                }
-                                "Rename Folder" -> {
-                                    if (item is SidebarItem.Folder) {
-                                        val et = android.widget.EditText(context).apply { setText(item.name) }
-                                        val renameDialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
-                                            .setTitle("Rename")
-                                            .setView(et)
-                                            .setPositiveButton("Save") { _, _ ->
-                                                val newName = et.text.toString()
-                                                val json = org.json.JSONObject().apply {
-                                                    put("name", newName)
-                                                    put("colorHex", item.colorHex)
-                                                    val jArr = org.json.JSONArray()
-                                                    item.items.forEach { jArr.put(it) }
-                                                    put("items", jArr)
-                                                    put("folderStyle", item.folderStyle)
-                                                }
-                                                manager.removeItem(item.id)
-                                                manager.addItem("folder:${item.uuid}:$json")
-                                            }
-                                            .setNegativeButton("Cancel", null)
-                                            .create()
-                                        renameDialog.window?.setType(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else android.view.WindowManager.LayoutParams.TYPE_PHONE)
-                                        renameDialog.show()
-                                    }
-                                }
-                                "Change Style" -> {
-                                    if (item is SidebarItem.Folder) {
-                                        showFolderStyleDialog(context, item, manager)
-                                    }
-                                }
-                                "Add App" -> {
-                                    if (item is SidebarItem.Folder) {
-                                        val et = android.widget.EditText(context).apply { hint = "Enter app package (e.g. com.android.chrome)" }
-                                        val addAppDialog = android.app.AlertDialog.Builder(context, android.R.style.Theme_DeviceDefault_Light_Dialog_Alert)
-                                            .setTitle("Add App Package")
-                                            .setView(et)
-                                            .setPositiveButton("Add") { _, _ ->
-                                                val pkg = et.text.toString().trim()
-                                                if (pkg.isNotEmpty()) {
-                                                    val newItems = item.items.toMutableList()
-                                                    newItems.add(pkg)
-                                                    val json = org.json.JSONObject().apply {
-                                                        put("name", item.name)
-                                                        put("colorHex", item.colorHex)
-                                                        val jArr = org.json.JSONArray()
-                                                        newItems.forEach { jArr.put(it) }
-                                                        put("items", jArr)
-                                                        put("folderStyle", item.folderStyle)
-                                                    }
-                                                    manager.removeItem(item.id)
-                                                    manager.addItem("folder:${item.uuid}:$json")
-                                                }
-                                            }
-                                            .setNegativeButton("Cancel", null)
-                                            .create()
-                                        addAppDialog.window?.setType(if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else android.view.WindowManager.LayoutParams.TYPE_PHONE)
-                                        addAppDialog.show()
                                     }
                                 }
                             }

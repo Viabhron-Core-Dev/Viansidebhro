@@ -193,7 +193,7 @@ fun ReaderSettingsScreen(onBack: () -> Unit) {
                 if (res.isSuccess) {
                     Toast.makeText(context, "Import successful. Please restart the app.", Toast.LENGTH_LONG).show()
                 } else {
-                    Toast.makeText(context, "Import failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Import failed: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }
@@ -422,7 +422,7 @@ fun DataSettingsScreen(onBack: () -> Unit) {
                 if (res.isSuccess) {
                     Toast.makeText(context, "Import successful. Please restart the app.", Toast.LENGTH_LONG).show()
                 } else {
-                    Toast.makeText(context, "Import failed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Import failed: ${res.exceptionOrNull()?.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }

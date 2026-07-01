@@ -54,22 +54,25 @@ class LibraryRepository(private val context: Context) {
                 dao.updateBook(finalBook.copy(totalChapters = totalChapters, isParsed = true))
             }
             
-            // Trim to 10 books
-            val allBooks = dao.getAllBooks()
-            if (allBooks.size > 10) {
-                for (i in 10 until allBooks.size) {
-                    val bookToDelete = allBooks[i]
-                    dao.deleteBook(bookToDelete)
-                    File(context.filesDir, "book_${bookToDelete.id}").deleteRecursively()
-                    val origFile = File(bookToDelete.filePath)
-                    if (origFile.exists()) origFile.delete()
-                }
-            }
+            trimToLast10Books()
             
             return@withContext finalBook
         } catch (e: Exception) {
             e.printStackTrace()
             return@withContext null
+        }
+    }
+
+    suspend fun trimToLast10Books() = withContext(Dispatchers.IO) {
+        val allBooks = dao.getAllBooks()
+        if (allBooks.size > 10) {
+            for (i in 10 until allBooks.size) {
+                val bookToDelete = allBooks[i]
+                dao.deleteBook(bookToDelete)
+                File(context.filesDir, "book_${bookToDelete.id}").deleteRecursively()
+                val origFile = File(bookToDelete.filePath)
+                if (origFile.exists()) origFile.delete()
+            }
         }
     }
 
