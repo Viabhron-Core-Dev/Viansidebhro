@@ -43,6 +43,7 @@ class SidebarEditOverlayView(
     val localIds = mutableListOf<String>()
 
     init {
+        com.example.LogKeeper.writeLog("SidebarEdit", "Opened sidebar edit overlay")
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {

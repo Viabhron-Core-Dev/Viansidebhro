@@ -26,6 +26,7 @@ class SidebarView(
     private val prefs: SharedPreferences,
     private val windowManager: WindowManager,
     private val pagesList: List<View>,
+    private val pageConfigs: List<com.example.utils.SidebarPage>,
     private val defaultPageIndex: Int,
     private val onAddClicked: (() -> Unit)? = null,
     private val onClose: () -> Unit
@@ -39,6 +40,7 @@ class SidebarView(
     private val dots = mutableListOf<View>()
 
     init {
+        com.example.LogKeeper.writeLog("Sidebar", "Opened sidebar")
         val windowType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
@@ -120,11 +122,10 @@ class SidebarView(
             }
             addView(closeText)
 
-            val settingsText = TextView(context).apply {
-                text = "⚙️"
-                textSize = 20f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
+            val settingsIcon = ImageView(context).apply {
+                setImageResource(android.R.drawable.ic_menu_preferences)
+                setColorFilter(Color.WHITE)
+                setPadding(8, 8, 8, 8)
                 layoutParams = LayoutParams(headerHeight, headerHeight).apply {
                     gravity = Gravity.END or Gravity.CENTER_VERTICAL
                     marginEnd = headerHeight // Position it before the close button
@@ -137,7 +138,7 @@ class SidebarView(
                     close()
                 }
             }
-            addView(settingsText)
+            addView(settingsIcon)
 
             val addIcon = ImageView(context).apply {
                 setImageResource(android.R.drawable.ic_menu_edit)
@@ -211,13 +212,15 @@ class SidebarView(
                 val actualPos = position % pages.size
                 updateDots(actualPos)
                 val page = pages.getOrNull(actualPos)
+                val pageConfig = pageConfigs.getOrNull(actualPos)
+                
                 if (page is AppsPageView) {
-                    updateHeight(page.getCurrentHeightPx())
+                    updatePageStyles(pageConfig, page.getCurrentHeightPx())
                 } else if (page is NotificationPageView) {
-                    updateHeight(page.getCurrentHeightPx())
+                    updatePageStyles(pageConfig, page.getCurrentHeightPx())
                 } else if (page != null) {
                     val density = context.resources.displayMetrics.density
-                    updateHeight((450 * density).toInt())
+                    updatePageStyles(pageConfig, (450 * density).toInt())
                 }
             }
         })
@@ -277,21 +280,41 @@ class SidebarView(
         }
     }
 
-    fun updateHeight(pageHeightPx: Int) {
-        val wrapContent = prefs.getBoolean("sidebar_wrap_content", true)
+    fun updatePageStyles(pageConfig: com.example.utils.SidebarPage?, pageHeightPx: Int) {
         val density = context.resources.displayMetrics.density
         
+        val wrapContent = if (pageConfig?.useCustomSettings == true) pageConfig.wrapContentHeight else prefs.getBoolean("sidebar_wrap_content", true)
+        val prefHeight = if (pageConfig?.useCustomSettings == true) pageConfig.height else prefs.getInt("sidebar_height", 450)
+        val prefWidth = if (pageConfig?.useCustomSettings == true) pageConfig.width else prefs.getInt("sidebar_width", 320)
+        val opacity = if (pageConfig?.useCustomSettings == true) pageConfig.transparency else prefs.getFloat("sidebar_transparency", 0.9f)
+        
+        val widthPx = (prefWidth * density).toInt()
+        layoutParams.width = widthPx
+        
         if (!wrapContent) {
-            layoutParams.height = (prefs.getInt("sidebar_height", 450) * density).toInt()
+            layoutParams.height = (prefHeight * density).toInt()
         } else {
             var targetHeight = pageHeightPx + (28 + 30) * density
-            val maxHeight = (prefs.getInt("sidebar_height", 450) * density).toInt()
+            val maxHeight = (prefHeight * density).toInt()
             
             targetHeight = Math.max((150 * density), targetHeight)
             targetHeight = Math.min(maxHeight.toFloat(), targetHeight)
             
             layoutParams.height = targetHeight.toInt()
         }
+        
+        val alphaInt = (opacity * 255).toInt().coerceIn(0, 255)
+        val isRight = !prefs.getBoolean("sidebar_position_left", false)
+        val drawable = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(Color.argb(alphaInt, 0, 0, 0))
+            cornerRadii = if (isRight) {
+                floatArrayOf(20f, 20f, 0f, 0f, 0f, 0f, 20f, 20f)
+            } else {
+                floatArrayOf(0f, 0f, 20f, 20f, 20f, 20f, 0f, 0f)
+            }
+        }
+        background = drawable
         
         if (windowToken != null) {
             windowManager.updateViewLayout(this, layoutParams)

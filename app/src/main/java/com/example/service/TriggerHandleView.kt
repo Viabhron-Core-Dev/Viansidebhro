@@ -83,6 +83,7 @@ class TriggerHandleView(
 
     private fun handleAction(gesture: String) {
         val action = prefs.getString("$prefix$gesture", "none") ?: "none"
+        com.example.LogKeeper.writeLog("TriggerHandle", "Gesture: $gesture, Action: $action")
         if (action == "toggle_sidebar") {
             onTriggerTapped()
         } else if (action == "toggle_reader") {

@@ -129,6 +129,7 @@
                 android:resource="@xml/file_paths" />
         </provider>
         <activity android:name=".RecordingsActivity" android:exported="false" />
+        <activity android:name=".NotificationHistoryActivity" android:exported="false" android:theme="@style/Theme.LiteReader" />
     </application>
 
 </manifest>

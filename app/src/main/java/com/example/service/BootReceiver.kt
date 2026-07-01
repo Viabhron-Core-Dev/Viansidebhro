@@ -8,6 +8,7 @@ import android.os.Build
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
+            com.example.LogKeeper.writeLog("BootReceiver", "Boot completed received")
             val prefs = context.getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE)
             val lastBook = prefs.getInt("last_book_id", -1)
             // On demand or on boot -> start if they had a book open

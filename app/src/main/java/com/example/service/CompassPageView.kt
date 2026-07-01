@@ -32,6 +32,7 @@ class CompassPageView(context: Context) : FrameLayout(context), SensorEventListe
     private val azimuthState = mutableFloatStateOf(0f)
 
     init {
+        com.example.LogKeeper.writeLog("Compass", "Opened compass page")
         addView(ComposeView(context).apply {
             setContent {
                 MaterialTheme(colorScheme = darkColorScheme()) {

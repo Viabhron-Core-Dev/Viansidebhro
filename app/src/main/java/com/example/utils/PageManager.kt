@@ -12,7 +12,12 @@ data class SidebarPage(
     var title: String,
     var gridColumns: Int = 3,
     var gridWrapContent: Boolean = true,
-    var stickAlignment: String = "bottom"
+    var stickAlignment: String = "bottom",
+    var useCustomSettings: Boolean = false,
+    var width: Int = 320,
+    var height: Int = 450,
+    var wrapContentHeight: Boolean = true,
+    var transparency: Float = 0.9f
 ) {
     fun toJson(): JSONObject {
         val obj = JSONObject()
@@ -22,6 +27,11 @@ data class SidebarPage(
         obj.put("gridColumns", gridColumns)
         obj.put("gridWrapContent", gridWrapContent)
         obj.put("stickAlignment", stickAlignment)
+        obj.put("useCustomSettings", useCustomSettings)
+        obj.put("width", width)
+        obj.put("height", height)
+        obj.put("wrapContentHeight", wrapContentHeight)
+        obj.put("transparency", transparency.toDouble())
         return obj
     }
 
@@ -33,7 +43,12 @@ data class SidebarPage(
                 title = obj.getString("title"),
                 gridColumns = obj.optInt("gridColumns", 3),
                 gridWrapContent = obj.optBoolean("gridWrapContent", true),
-                stickAlignment = obj.optString("stickAlignment", "bottom")
+                stickAlignment = obj.optString("stickAlignment", "bottom"),
+                useCustomSettings = obj.optBoolean("useCustomSettings", false),
+                width = obj.optInt("width", 320),
+                height = obj.optInt("height", 450),
+                wrapContentHeight = obj.optBoolean("wrapContentHeight", true),
+                transparency = obj.optDouble("transparency", 0.9).toFloat()
             )
         }
     }

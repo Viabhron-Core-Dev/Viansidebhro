@@ -495,7 +495,7 @@ class FloatingReaderService : Service() {
                         onHeightChanged = { newHeight ->
                             // Only update height if this is the currently selected page
                             if (sidebarView != null && p != null && sidebarPagesList.indexOf(p!!) == sidebarView!!.getCurrentPageIndex()) {
-                                sidebarView?.updateHeight(newHeight)
+                                sidebarView?.updatePageStyles(config, newHeight)
                             }
                         }
                     )
@@ -510,7 +510,7 @@ class FloatingReaderService : Service() {
                     var p: NotificationPageView? = null
                     p = NotificationPageView(this) { newHeight ->
                         if (sidebarView != null && p != null && sidebarPagesList.indexOf(p!!) == sidebarView!!.getCurrentPageIndex()) {
-                            sidebarView?.updateHeight(newHeight)
+                            sidebarView?.updatePageStyles(config, newHeight)
                         }
                     }
                     p
@@ -536,7 +536,7 @@ class FloatingReaderService : Service() {
     private fun showSidebar() {
         if (sidebarView == null) {
             rebuildSidebarPages()
-            sidebarView = SidebarView(this, prefs, windowManager, sidebarPagesList, sidebarDefaultIndex,
+            sidebarView = SidebarView(this, prefs, windowManager, sidebarPagesList, PageManager.getPages(prefs), sidebarDefaultIndex,
                 onAddClicked = { showSidebarEditOverlay() },
                 onClose = { sidebarView?.detach() }
             )
@@ -546,13 +546,14 @@ class FloatingReaderService : Service() {
                 sidebarView?.setViewTreeSavedStateRegistryOwner(it)
             }
             val defaultPage = sidebarPagesList.getOrNull(sidebarDefaultIndex)
+            val defaultPageConfig = PageManager.getPages(prefs).getOrNull(sidebarDefaultIndex)
             if (defaultPage is AppsPageView) {
-                sidebarView?.updateHeight((defaultPage).getCurrentHeightPx())
+                sidebarView?.updatePageStyles(defaultPageConfig, (defaultPage).getCurrentHeightPx())
             } else if (defaultPage is NotificationPageView) {
-                sidebarView?.updateHeight((defaultPage).getCurrentHeightPx())
+                sidebarView?.updatePageStyles(defaultPageConfig, (defaultPage).getCurrentHeightPx())
             } else if (defaultPage != null) {
                 val density = resources.displayMetrics.density
-                sidebarView?.updateHeight((450 * density).toInt())
+                sidebarView?.updatePageStyles(defaultPageConfig, (450 * density).toInt())
             }
         }
         sidebarView?.attach()

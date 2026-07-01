@@ -27,6 +27,7 @@ import android.net.Uri
 class SettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.example.LogKeeper.writeLog("Settings", "Opened SettingsActivity")
         enableEdgeToEdge()
         val startRoute = intent.getStringExtra("start_route") ?: "main"
         

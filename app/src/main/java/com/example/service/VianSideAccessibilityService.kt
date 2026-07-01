@@ -9,6 +9,7 @@ class VianSideAccessibilityService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        com.example.LogKeeper.writeLog("VianSideAccessibility", "Service connected")
         android.util.Log.d("VianSideAccessibility", "Service connected")
     }
 
@@ -22,15 +23,18 @@ class VianSideAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         instance = null
+        com.example.LogKeeper.writeLog("VianSideAccessibility", "Service unbound")
         return super.onUnbind(intent)
     }
 
     override fun onDestroy() {
         super.onDestroy()
         instance = null
+        com.example.LogKeeper.writeLog("VianSideAccessibility", "Service destroyed")
     }
 
     fun performAction(action: String): Boolean {
+        com.example.LogKeeper.writeLog("VianSideAccessibility", "Performing action: $action")
         return when (action) {
             "back" -> performGlobalAction(GLOBAL_ACTION_BACK)
             "home" -> performGlobalAction(GLOBAL_ACTION_HOME)

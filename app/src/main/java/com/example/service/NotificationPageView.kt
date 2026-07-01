@@ -27,6 +27,11 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.Image
 import androidx.core.graphics.drawable.toBitmap
 import android.graphics.drawable.BitmapDrawable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.FilterList
+import com.example.NotificationHistoryActivity
+import android.content.Intent
 
 class NotificationPageView(
     context: Context,
@@ -62,6 +67,10 @@ class NotificationPageView(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun NotificationScreen(context: Context) {
+    LaunchedEffect(Unit) {
+        com.example.LogKeeper.writeLog("Sidebar", "Notification page viewed")
+    }
+    
     val notifications by AppNotificationListener.notifications.collectAsState()
     val prefs = remember { context.getSharedPreferences("NotificationPrefs", Context.MODE_PRIVATE) }
     
@@ -69,6 +78,9 @@ fun NotificationScreen(context: Context) {
     var hiddenPackages by remember { 
         mutableStateOf(prefs.getStringSet("hidden_packages", emptySet()) ?: emptySet())
     }
+    
+    // Filter dialog
+    var showFilterDialog by remember { mutableStateOf(false) }
     
     // Check if permission is granted
     val hasPermission = remember { 
@@ -97,20 +109,93 @@ fun NotificationScreen(context: Context) {
 
     val visibleNotifications = notifications.filter { !hiddenPackages.contains(it.packageName) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxWidth()
-            .wrapContentHeight()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(visibleNotifications, key = { it.key }) { sbn ->
-            NotificationItem(context, sbn, onHideApp = { pkg ->
-                val updated = hiddenPackages.toMutableSet().apply { add(pkg) }
-                prefs.edit().putStringSet("hidden_packages", updated).apply()
-                hiddenPackages = updated
-            })
+    Column(modifier = Modifier.fillMaxWidth().wrapContentHeight()) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Notifications", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            Row {
+                IconButton(onClick = { showFilterDialog = true }) {
+                    Icon(Icons.Default.FilterList, "Filter Apps", tint = Color.White)
+                }
+                IconButton(onClick = { 
+                    val intent = Intent(context, NotificationHistoryActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(intent)
+                }) {
+                    Icon(Icons.Default.History, "History", tint = Color.White)
+                }
+            }
         }
+        
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(visibleNotifications, key = { it.key }) { sbn ->
+                NotificationItem(context, sbn, onHideApp = { pkg ->
+                    val updated = hiddenPackages.toMutableSet().apply { add(pkg) }
+                    prefs.edit().putStringSet("hidden_packages", updated).apply()
+                    hiddenPackages = updated
+                })
+            }
+            item {
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        }
+    }
+    
+    if (showFilterDialog) {
+        AlertDialog(
+            onDismissRequest = { showFilterDialog = false },
+            title = { Text("Filter Apps in Sidebar") },
+            text = {
+                val pm = context.packageManager
+                // Get all apps that ever posted a notification in our current active list
+                val appsInList = notifications.map { it.packageName to 
+                    try { pm.getApplicationLabel(pm.getApplicationInfo(it.packageName, 0)).toString() } 
+                    catch(e: Exception) { it.packageName }
+                }.distinctBy { it.first }
+                
+                LazyColumn {
+                    items(appsInList) { (pkg, name) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = !hiddenPackages.contains(pkg),
+                                onCheckedChange = { checked ->
+                                    val newHidden = hiddenPackages.toMutableSet()
+                                    if (checked) {
+                                        newHidden.remove(pkg)
+                                    } else {
+                                        newHidden.add(pkg)
+                                    }
+                                    hiddenPackages = newHidden
+                                    prefs.edit().putStringSet("hidden_packages", newHidden).apply()
+                                }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(name)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showFilterDialog = false }) {
+                    Text("Done")
+                }
+            }
+        )
     }
 }
 

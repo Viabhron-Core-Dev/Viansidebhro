@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
 import com.example.utils.PageManager
 import com.example.utils.SidebarPage
@@ -23,9 +24,35 @@ import androidx.compose.foundation.combinedClickable
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun SidebarSettingsScreen(onBack: () -> Unit) {
+    val configuration = LocalConfiguration.current
+    val maxScreenWidth = configuration.screenWidthDp.toFloat()
+    val maxScreenHeight = configuration.screenHeightDp.toFloat()
+
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("FloatingReaderPrefs", Context.MODE_PRIVATE) }
     
+    var customisingPage by remember { mutableStateOf<SidebarPage?>(null) }
+    var selectedActionPage by remember { mutableStateOf<SidebarPage?>(null) }
+    var pageActionIndex by remember { mutableStateOf(-1) }
+
+    if (customisingPage != null) {
+        PageCustomizeScreen(
+            page = customisingPage!!,
+            onSave = { updated ->
+                val newPages = PageManager.getPages(prefs).toMutableList()
+                val idx = newPages.indexOfFirst { it.id == updated.id }
+                if (idx != -1) {
+                    newPages[idx] = updated
+                    PageManager.savePages(prefs, newPages)
+                }
+            },
+            onBack = {
+                customisingPage = null
+            }
+        )
+        return
+    }
+
     // Sidebar options
     var sidebarColumns by remember { mutableStateOf(prefs.getInt("sidebar_columns", 4)) }
     var sidebarWidth by remember { mutableStateOf(prefs.getInt("sidebar_width", 320)) }
@@ -82,8 +109,8 @@ fun SidebarSettingsScreen(onBack: () -> Unit) {
                                 sidebarWidth = it.toInt()
                                 prefs.edit().putInt("sidebar_width", it.toInt()).apply()
                             },
-                            valueRange = 200f..800f,
-                            steps = 60
+                            valueRange = 200f..maxScreenWidth,
+                                steps = ((maxScreenWidth - 200f) / 10f).toInt()
                         )
                     },
                     trailingContent = { Text("${sidebarWidth}dp") }
@@ -98,8 +125,8 @@ fun SidebarSettingsScreen(onBack: () -> Unit) {
                                 sidebarHeight = it.toInt()
                                 prefs.edit().putInt("sidebar_height", it.toInt()).apply()
                             },
-                            valueRange = 300f..1000f,
-                            steps = 70
+                            valueRange = 300f..maxScreenHeight,
+                                steps = ((maxScreenHeight - 300f) / 10f).toInt()
                         )
                     },
                     trailingContent = { Text("${sidebarHeight}dp") }
@@ -179,13 +206,9 @@ fun SidebarSettingsScreen(onBack: () -> Unit) {
                     modifier = Modifier.combinedClickable(
                         onClick = { },
                         onLongClick = {
-                            if (index > 0 && pages.size > 1) {
-                                val newPages = pages.toMutableList()
-                                newPages.removeAt(index)
-                                if (defaultIndex == index) defaultIndex = 0
-                                else if (defaultIndex > index) defaultIndex--
-                                pages = newPages
-                                savePages()
+                            if (index > 0 && pages.size > 1) { // don't allow editing/removing default Apps Grid
+                                selectedActionPage = page
+                                pageActionIndex = index
                             }
                         }
                     ),
@@ -245,6 +268,7 @@ fun SidebarSettingsScreen(onBack: () -> Unit) {
                             "scheduler" to "Scheduler",
                             "calculator" to "Calculator",
                             "compass" to "Compass",
+                            "notifications" to "Notifications",
                             "reader" to "Reader"
                         )
                         types.forEach { (type, title) ->
@@ -262,6 +286,53 @@ fun SidebarSettingsScreen(onBack: () -> Unit) {
                 },
                 confirmButton = {
                     TextButton(onClick = { showAddDialog = false }) {
+                        Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        if (selectedActionPage != null && pageActionIndex != -1) {
+            AlertDialog(
+                onDismissRequest = { 
+                    selectedActionPage = null
+                    pageActionIndex = -1
+                },
+                title = { Text("Page Actions") },
+                text = {
+                    Column {
+                        TextButton(
+                            onClick = {
+                                customisingPage = selectedActionPage
+                                selectedActionPage = null
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Edit / Customize", modifier = Modifier.fillMaxWidth())
+                        }
+                        TextButton(
+                            onClick = {
+                                val newPages = pages.toMutableList()
+                                newPages.removeAt(pageActionIndex)
+                                if (defaultIndex == pageActionIndex) defaultIndex = 0
+                                else if (defaultIndex > pageActionIndex) defaultIndex--
+                                pages = newPages
+                                savePages()
+                                
+                                selectedActionPage = null
+                                pageActionIndex = -1
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Remove", color = MaterialTheme.colorScheme.error, modifier = Modifier.fillMaxWidth())
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { 
+                        selectedActionPage = null
+                        pageActionIndex = -1
+                    }) {
                         Text("Cancel")
                     }
                 }

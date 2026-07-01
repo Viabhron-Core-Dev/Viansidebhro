@@ -16,6 +16,7 @@ import androidx.compose.ui.unit.dp
 class CalculatorPageView(context: Context) : FrameLayout(context) {
 
     init {
+        com.example.LogKeeper.writeLog("Calculator", "Opened calculator page")
         addView(ComposeView(context).apply {
             layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT)
             setContent {

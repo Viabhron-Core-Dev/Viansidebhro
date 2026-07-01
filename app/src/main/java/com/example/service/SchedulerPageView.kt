@@ -32,6 +32,7 @@ class SchedulerPageView(
     private val db = AppDatabase.getDatabase(context)
 
     init {
+        com.example.LogKeeper.writeLog("Scheduler", "Opened scheduler page")
         addView(ComposeView(context).apply {
             setContent {
                 MaterialTheme(colorScheme = darkColorScheme()) {
