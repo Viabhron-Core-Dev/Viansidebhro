@@ -19,12 +19,17 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.RecyclerView
 import org.json.JSONArray
 import com.example.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @SuppressLint("ViewConstructor")
 class SidebarEditOverlayView(
     context: Context,
     private val manager: SidebarAppsManager,
     private val windowManager: WindowManager,
+    private val serviceScope: CoroutineScope,
     private val onAddClicked: () -> Unit,
     private val onClose: () -> Unit
 ) : FrameLayout(context) {
@@ -188,7 +193,7 @@ class SidebarEditOverlayView(
         val jArr = JSONArray()
         localIds.forEach { jArr.put(it) }
         prefs.edit().putString("sidebar_apps", jArr.toString()).apply()
-        manager.ensureLoaded()
+        manager.reloadActiveApps()
         close()
     }
 
@@ -237,11 +242,33 @@ class SidebarEditOverlayView(
             holder.label.text = item.label
 
             if (item is SidebarItem.App) {
-                val cached = manager.iconCache.get(item.packageName)
-                if (cached != null) {
-                    holder.icon.setImageBitmap(cached)
-                } else {
-                    holder.icon.setImageResource(android.R.mipmap.sym_def_app_icon)
+                serviceScope.launch {
+                    val bitmap = manager.loadIcon(item.packageName)
+                    if (bitmap != null) {
+                        withContext(Dispatchers.Main) {
+                            holder.icon.setBackgroundColor(Color.TRANSPARENT)
+                            holder.icon.setImageBitmap(bitmap)
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            holder.icon.setImageResource(android.R.mipmap.sym_def_app_icon)
+                        }
+                    }
+                }
+            } else if (item is SidebarItem.IntentAction) {
+                val pkg = item.componentStr.split("/").getOrNull(0) ?: ""
+                serviceScope.launch {
+                    val bitmap = manager.loadIcon(pkg)
+                    if (bitmap != null) {
+                        withContext(Dispatchers.Main) {
+                            holder.icon.setBackgroundColor(Color.TRANSPARENT)
+                            holder.icon.setImageBitmap(bitmap)
+                        }
+                    } else {
+                        withContext(Dispatchers.Main) {
+                            holder.icon.setImageResource(android.R.mipmap.sym_def_app_icon)
+                        }
+                    }
                 }
             } else if (item is SidebarItem.SystemAction || item is SidebarItem.VolumeAction || item is SidebarItem.MediaAction || item is SidebarItem.DisplayAction) {
                 val resId = when (item) {

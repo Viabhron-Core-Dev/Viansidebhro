@@ -309,6 +309,15 @@ class SidebarAppsManager(
         return null
     }
 
+    fun reloadActiveApps() {
+        coroutineScope.launch {
+            loadActiveApps()
+            withContext(Dispatchers.Main) {
+                onAppsUpdated()
+            }
+        }
+    }
+
     private suspend fun loadActiveApps() = withContext(Dispatchers.IO) {
         var jsonStr = prefs.getString("sidebar_apps", """["system:log_keeper", "system:ebook_reader"]""") ?: """["system:log_keeper", "system:ebook_reader"]"""
         if (jsonStr == "[]" || jsonStr == """["system:log_keeper"]""") {
