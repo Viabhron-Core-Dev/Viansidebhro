@@ -61,6 +61,14 @@ sealed class SidebarItem {
         override val id = "display:$action"
     }
 
+    data class SettingsShortcut(
+        val action: String,
+        override val label: String,
+        val iconResId: Int
+    ) : SidebarItem() {
+        override val id = "settings_shortcut:$action"
+    }
+
     data class Folder(
         val uuid: String,
         val name: String,
@@ -143,6 +151,19 @@ val ALL_MEDIA_ACTIONS = listOf(
     SidebarItem.MediaAction("next", "Next", android.R.drawable.ic_media_next),
     SidebarItem.MediaAction("previous", "Previous", android.R.drawable.ic_media_previous),
     SidebarItem.MediaAction("stop", "Stop", android.R.drawable.ic_media_pause)
+)
+
+val ALL_SETTINGS_SHORTCUTS = listOf(
+    SidebarItem.SettingsShortcut("settings", "Settings", android.R.drawable.ic_menu_preferences),
+    SidebarItem.SettingsShortcut("wifi", "Wi-Fi", android.R.drawable.ic_menu_preferences),
+    SidebarItem.SettingsShortcut("bluetooth", "Bluetooth", android.R.drawable.ic_menu_preferences),
+    SidebarItem.SettingsShortcut("display", "Display", android.R.drawable.ic_menu_preferences),
+    SidebarItem.SettingsShortcut("sound", "Sound", android.R.drawable.ic_menu_preferences),
+    SidebarItem.SettingsShortcut("location", "Location", android.R.drawable.ic_menu_preferences),
+    SidebarItem.SettingsShortcut("apps", "Apps", android.R.drawable.ic_menu_preferences),
+    SidebarItem.SettingsShortcut("security", "Security", android.R.drawable.ic_menu_preferences),
+    SidebarItem.SettingsShortcut("battery", "Battery", android.R.drawable.ic_menu_preferences),
+    SidebarItem.SettingsShortcut("date", "Date & Time", android.R.drawable.ic_menu_preferences)
 )
 
 val ALL_DISPLAY_ACTIONS = listOf(
@@ -274,7 +295,19 @@ class SidebarAppsManager(
             if (displayAction != null) {
                 return SidebarItem.DisplayAction(actionId, displayAction.label, displayAction.iconResId)
             }
-        } else if (id.startsWith("folder:")) {
+        } else if (id.startsWith("settings_shortcut:")) {
+            val actionId = id.substringAfter("settings_shortcut:")
+            val settingsAction = ALL_SETTINGS_SHORTCUTS.find { it.action == actionId }
+            if (settingsAction != null) {
+                return SidebarItem.SettingsShortcut(actionId, settingsAction.label, settingsAction.iconResId)
+            }
+        } else if (id.startsWith("settings_shortcut:")) {
+                val actionId = id.substringAfter("settings_shortcut:")
+                val settingsAction = ALL_SETTINGS_SHORTCUTS.find { it.action == actionId }
+                if (settingsAction != null) {
+                    return SidebarItem.SettingsShortcut(actionId, settingsAction.label, settingsAction.iconResId)
+                }
+            } else if (id.startsWith("folder:")) {
             try {
                 val parts = id.split(":", limit = 3)
                 val uuid = parts[1]
@@ -372,6 +405,12 @@ class SidebarAppsManager(
                 val displayAction = ALL_DISPLAY_ACTIONS.find { it.action == actionId }
                 if (displayAction != null) {
                     result.add(SidebarItem.DisplayAction(actionId, displayAction.label, displayAction.iconResId))
+                }
+            } else if (id.startsWith("settings_shortcut:")) {
+                val actionId = id.substringAfter("settings_shortcut:")
+                val settingsAction = ALL_SETTINGS_SHORTCUTS.find { it.action == actionId }
+                if (settingsAction != null) {
+                    result.add(SidebarItem.SettingsShortcut(actionId, settingsAction.label, settingsAction.iconResId))
                 }
             } else if (id.startsWith("folder:")) {
                 try {

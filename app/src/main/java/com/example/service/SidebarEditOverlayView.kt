@@ -271,11 +271,12 @@ class SidebarEditOverlayView(
                         }
                     }
                 }
-            } else if (item is SidebarItem.SystemAction || item is SidebarItem.VolumeAction || item is SidebarItem.MediaAction || item is SidebarItem.DisplayAction) {
+            } else if (item is SidebarItem.SystemAction || item is SidebarItem.VolumeAction || item is SidebarItem.MediaAction || item is SidebarItem.DisplayAction || item is SidebarItem.SettingsShortcut) {
                 val resId = when (item) {
                     is SidebarItem.SystemAction -> item.iconResId
                     is SidebarItem.VolumeAction -> item.iconResId
                     is SidebarItem.MediaAction -> item.iconResId
+                    is SidebarItem.SettingsShortcut -> item.iconResId
                     is SidebarItem.DisplayAction -> item.iconResId
                     else -> 0
                 }

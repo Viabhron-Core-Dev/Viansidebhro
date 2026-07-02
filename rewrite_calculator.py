@@ -1,3 +1,6 @@
+import re
+
+new_code = """
 package com.example.service
 
 import android.content.Context
@@ -211,7 +214,7 @@ fun CalculatorScreen() {
 
 fun formatExpression(expr: String): String {
     // A simple formatter that tries to format numbers with commas while preserving operators
-    val regex = Regex("(\\d+\\.?\\d*)")
+    val regex = Regex("(\\\\d+\\\\.?\\\\d*)")
     return regex.replace(expr) { matchResult ->
         try {
             val numStr = matchResult.value
@@ -291,3 +294,9 @@ fun evalBasic(str: String): Double {
         }
     }.parse()
 }
+"""
+
+with open('app/src/main/java/com/example/service/CalculatorPageView.kt', 'w') as f:
+    f.write(new_code.strip() + "\n")
+
+print("Patched.")

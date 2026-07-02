@@ -30,8 +30,8 @@ sealed class AddElementItem {
 
 enum class ActionType {
     APP, SHORTCUT, FOLDER, LINK, EMPTY_ITEM, INTENT,
-    SYSTEM, VOLUME, MEDIA, BRIGHTNESS, SCREEN_TIMEOUT, SCREEN_ORIENTATION, WIDGET,
-    SPECIFIC_SYSTEM_ACTION
+    SYSTEM, VOLUME, MEDIA, BRIGHTNESS, SCREEN_TIMEOUT, SCREEN_ORIENTATION, WIDGET, SETTINGS_SHORTCUT_HEADER,
+    SPECIFIC_SYSTEM_ACTION, SPECIFIC_SETTINGS_SHORTCUT
 }
 
 @SuppressLint("ViewConstructor")
@@ -108,7 +108,7 @@ class AddElementOverlayView(
     private var currentMode = Mode.MAIN
 
     enum class Mode {
-        MAIN, SYSTEM_ACTIONS, VOLUME_ACTIONS, MEDIA_ACTIONS, DISPLAY_ACTIONS
+        MAIN, SYSTEM_ACTIONS, VOLUME_ACTIONS, MEDIA_ACTIONS, DISPLAY_ACTIONS, SETTINGS_SHORTCUTS
     }
 
     private fun loadData() {
@@ -130,10 +130,16 @@ class AddElementOverlayView(
             
             // Android actions
             items.add(AddElementItem.Header("Android actions"))
+            items.add(AddElementItem.Action(android.R.drawable.ic_menu_preferences, "Android Settings Shortcut", "(${ALL_SETTINGS_SHORTCUTS.size})", ActionType.SETTINGS_SHORTCUT_HEADER))
             items.add(AddElementItem.Action(android.R.drawable.ic_menu_info_details, "System", "(${ALL_SYSTEM_ACTIONS.size})", ActionType.SYSTEM))
             items.add(AddElementItem.Action(android.R.drawable.ic_lock_silent_mode_off, "Volume", "(${ALL_VOLUME_ACTIONS.size})", ActionType.VOLUME))
             items.add(AddElementItem.Action(android.R.drawable.ic_media_play, "Media", "(${ALL_MEDIA_ACTIONS.size})", ActionType.MEDIA))
             items.add(AddElementItem.Action(android.R.drawable.ic_menu_day, "Display Controls", "(${ALL_DISPLAY_ACTIONS.size})", ActionType.BRIGHTNESS))
+        } else if (currentMode == Mode.SETTINGS_SHORTCUTS) {
+            items.add(AddElementItem.Header("Settings Shortcuts"))
+            for (action in ALL_SETTINGS_SHORTCUTS) {
+                items.add(AddElementItem.Action(action.iconResId, action.label, "", ActionType.SPECIFIC_SETTINGS_SHORTCUT, action.id))
+            }
         } else if (currentMode == Mode.SYSTEM_ACTIONS) {
             items.add(AddElementItem.Header("System actions"))
             for (action in ALL_SYSTEM_ACTIONS) {
@@ -176,6 +182,15 @@ class AddElementOverlayView(
         when (item.type) {
             ActionType.APP -> {
                 onAppSelected(targetFolderUuid)
+            }
+            ActionType.SETTINGS_SHORTCUT_HEADER -> {
+                currentMode = Mode.SETTINGS_SHORTCUTS
+                loadData()
+                updateHeaderTitle("Settings")
+            }
+            ActionType.SPECIFIC_SETTINGS_SHORTCUT -> {
+                addSidebarItem(item.id)
+                close()
             }
             ActionType.SYSTEM -> {
                 currentMode = Mode.SYSTEM_ACTIONS

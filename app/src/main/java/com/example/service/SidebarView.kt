@@ -85,7 +85,12 @@ class SidebarView(
         
         val drawable = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            setColor(Color.argb(alphaInt, 0, 0, 0))
+            val colorHex = prefs.getString("sidebar_color", "#000000") ?: "#000000"
+        val baseColor = try { Color.parseColor(colorHex) } catch(e:Exception){ Color.BLACK }
+        val r = Color.red(baseColor)
+        val g = Color.green(baseColor)
+        val b = Color.blue(baseColor)
+        setColor(Color.argb(alphaInt, r, g, b))
             
             // Adjust corners based on left or right edge
             cornerRadii = if (isRight) {
@@ -142,7 +147,7 @@ class SidebarView(
 
             val addIcon = ImageView(context).apply {
                 setImageResource(android.R.drawable.ic_menu_edit)
-                setColorFilter(Color.parseColor("#4CAF50"))
+                setColorFilter(Color.WHITE)
                 val pad = (12 * resources.displayMetrics.density).toInt()
                 setPadding(pad, pad, pad, pad)
                 layoutParams = LayoutParams(headerHeight, headerHeight).apply {
@@ -307,7 +312,12 @@ class SidebarView(
         val isRight = !prefs.getBoolean("sidebar_position_left", false)
         val drawable = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            setColor(Color.argb(alphaInt, 0, 0, 0))
+            val colorHex = prefs.getString("sidebar_color", "#000000") ?: "#000000"
+        val baseColor = try { Color.parseColor(colorHex) } catch(e:Exception){ Color.BLACK }
+        val r = Color.red(baseColor)
+        val g = Color.green(baseColor)
+        val b = Color.blue(baseColor)
+        setColor(Color.argb(alphaInt, r, g, b))
             cornerRadii = if (isRight) {
                 floatArrayOf(20f, 20f, 0f, 0f, 0f, 0f, 20f, 20f)
             } else {

@@ -82,10 +82,10 @@ class AppsPageView(
         for (item in sourceApps) {
             flatList.add(item)
             if (item is SidebarItem.Folder && expandedFolders.contains(item.id)) {
-                for (pkg in item.items) {
-                    val appInfo = manager.allInstalledApps.find { it.packageName == pkg }
-                    if (appInfo != null) {
-                        flatList.add(SidebarItem.App(appInfo.packageName, appInfo.label))
+                for (itemId in item.items) {
+                    val parsedItem = manager.parseId(itemId)
+                    if (parsedItem != null) {
+                        flatList.add(parsedItem)
                     }
                 }
             }
@@ -129,6 +129,10 @@ class AppsPageView(
     }
 
     private inner class AppsAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+        fun updateItems(newItems: List<SidebarItem>) {
+            notifyDataSetChanged()
+        }
+
         override fun getItemViewType(position: Int): Int {
             return if (displayedItems[position] is SidebarItem.Spacer) 1 else 0
         }
@@ -147,15 +151,15 @@ class AppsPageView(
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
             val item = displayedItems[position]
             if (holder is AppViewHolder) {
-                holder.bind(item)
+                holder.bind(item, position)
             } else if (holder is SpacerViewHolder && item is SidebarItem.Spacer) {
-                holder.bind(item)
+                holder.bind(item, position)
             }
         }
     }
 
     private inner class SpacerViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
-        fun bind(item: SidebarItem.Spacer) {
+        fun bind(item: SidebarItem.Spacer, position: Int) {
             val density = view.context.resources.displayMetrics.density
             val lp = RecyclerView.LayoutParams(RecyclerView.LayoutParams.MATCH_PARENT, (item.heightDp * density).toInt())
             view.layoutParams = lp
@@ -172,7 +176,7 @@ class AppsPageView(
         val icon: android.widget.ImageView = view.findViewById(R.id.app_icon)
         val label: TextView = view.findViewById(R.id.app_label)
         
-        fun bind(item: SidebarItem) {
+        fun bind(item: SidebarItem, position: Int) {
             label.text = item.label
             icon.setImageDrawable(null)
             icon.clearColorFilter()
@@ -191,13 +195,38 @@ class AppsPageView(
                         onCloseSidebar()
                     }
                 } else if (item is SidebarItem.Folder) {
-                    if (expandedFolders.contains(item.id)) {
-                        expandedFolders.remove(item.id)
-                    } else {
-                        expandedFolders.add(item.id)
+                icon.setImageDrawable(null)
+                icon.clearColorFilter()
+                icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                
+                val cHex = try { android.graphics.Color.parseColor(item.colorHex) } catch(e:Exception){ android.graphics.Color.parseColor("#00BFA5") }
+                val iconC = android.graphics.Color.WHITE
+                
+                val miniIcons = item.items.mapNotNull { 
+                    if (it.startsWith("app:")) manager.iconCache.get(it.substringAfter("app:")) else null 
+                }.take(4)
+                icon.setImageDrawable(FolderStyleDrawable(item.folderStyle, cHex, iconC, miniIcons))
+                
+                if (miniIcons.isEmpty() && item.items.any { it.startsWith("app:") }) {
+                    serviceScope.launch {
+                        var loadedAny = false
+                        for (it in item.items.take(4)) {
+                            if (it.startsWith("app:")) {
+                                val bitmap = manager.loadIcon(it.substringAfter("app:"))
+                                if (bitmap != null) {
+                                    loadedAny = true
+                                }
+                            }
+                        }
+                        if (loadedAny) {
+                            withContext(Dispatchers.Main) {
+                                adapter.notifyItemChanged(position)
+                            }
+                        }
                     }
-                    refreshList()
-                } else if (item is SidebarItem.Link) {
+                }
+            } else if (item is SidebarItem.Link) {
+            } else if (item is SidebarItem.Link) {
                     try {
                         val intent = if (item.url.startsWith("intent:")) {
                             android.content.Intent.parseUri(item.url, android.content.Intent.URI_INTENT_SCHEME)
@@ -259,7 +288,31 @@ class AppsPageView(
                         com.example.LogKeeper.writeLog("Sidebar", "Media action err: ${e.message}")
                     }
                     onCloseSidebar()
-                } else if (item is SidebarItem.DisplayAction) {
+                } else if (item is SidebarItem.SettingsShortcut) {
+                    val intent = when (item.action) {
+                        "wifi" -> android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)
+                        "bluetooth" -> android.content.Intent(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS)
+                        "display" -> android.content.Intent(android.provider.Settings.ACTION_DISPLAY_SETTINGS)
+                        "sound" -> android.content.Intent(android.provider.Settings.ACTION_SOUND_SETTINGS)
+                        "location" -> android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+                        "apps" -> android.content.Intent(android.provider.Settings.ACTION_APPLICATION_SETTINGS)
+                        "security" -> android.content.Intent(android.provider.Settings.ACTION_SECURITY_SETTINGS)
+                        "battery" -> android.content.Intent(android.provider.Settings.ACTION_BATTERY_SAVER_SETTINGS) // Generic fallback
+                        "date" -> android.content.Intent(android.provider.Settings.ACTION_DATE_SETTINGS)
+                        else -> android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+                    }
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                    try {
+                        context.startActivity(intent)
+                        context.sendBroadcast(android.content.Intent("com.example.CLOSE_SIDEBAR"))
+                    } catch (e: Exception) {
+                        android.widget.Toast.makeText(context, "Cannot open settings", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                } else if (item is SidebarItem.SettingsShortcut) {
+                icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                icon.setImageResource(item.iconResId)
+                icon.setColorFilter(android.graphics.Color.WHITE)
+            } else if (item is SidebarItem.DisplayAction) {
                     try {
                         com.example.LogKeeper.writeLog("Sidebar", "Display action: ${item.action}")
                         DisplayHandler.handleDisplayAction(context, item.action)
@@ -409,6 +462,10 @@ class AppsPageView(
                 icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 icon.setImageResource(item.iconResId)
                 icon.setColorFilter(android.graphics.Color.WHITE)
+            } else if (item is SidebarItem.SettingsShortcut) {
+                icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                icon.setImageResource(item.iconResId)
+                icon.setColorFilter(android.graphics.Color.WHITE)
             } else if (item is SidebarItem.DisplayAction) {
                 icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 icon.setImageResource(item.iconResId)
@@ -425,6 +482,26 @@ class AppsPageView(
                     if (it.startsWith("app:")) manager.iconCache.get(it.substringAfter("app:")) else null 
                 }.take(4)
                 icon.setImageDrawable(FolderStyleDrawable(item.folderStyle, cHex, iconC, miniIcons))
+                
+                if (miniIcons.isEmpty() && item.items.any { it.startsWith("app:") }) {
+                    serviceScope.launch {
+                        var loadedAny = false
+                        for (it in item.items.take(4)) {
+                            if (it.startsWith("app:")) {
+                                val bitmap = manager.loadIcon(it.substringAfter("app:"))
+                                if (bitmap != null) {
+                                    loadedAny = true
+                                }
+                            }
+                        }
+                        if (loadedAny) {
+                            withContext(Dispatchers.Main) {
+                                adapter.notifyItemChanged(position)
+                            }
+                        }
+                    }
+                }
+            } else if (item is SidebarItem.Link) {
             } else if (item is SidebarItem.Link) {
                 icon.setBackgroundColor(android.graphics.Color.TRANSPARENT)
                 icon.setImageResource(android.R.drawable.ic_menu_set_as) // Generic link icon

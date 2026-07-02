@@ -135,7 +135,7 @@ fun HandleEditScreen(handleId: String, onBack: () -> Unit) {
             ) {
                 val presetColors = listOf(
                     "#44102d42", "#3318304A", "#66000000", "#66FFFFFF", 
-                    "#80FF5252", "#804CAF50", "#802196F3", "#80FFEB3B"
+                    "#80FF5252", "#804CAF50", "#802196F3", "#80FFEB3B", "#8087CEEB"
                 )
                 presetColors.forEach { colorString ->
                     val parsedColor = try {
